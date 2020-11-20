@@ -68,9 +68,10 @@ interno.
 
 int execute_line(char *line){
     printf("He leido la linea : %s", line);
-    char **tokens;
-    if((tokens = malloc(COMMAND_LINE_SIZE)) < 0){ //Tratamiento del malloc
-        return -1;    
+    char *tokens[ARGS_SIZE];
+
+    if(*tokens < 0){
+        return -1;
     }
     parse_args(tokens, line);
     check_internal(tokens);
@@ -91,22 +92,16 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 
 int parse_args(char **args, char *line){
     int tokens = 0;
-    //*args[tokens] = malloc(COMMAND_LINE_SIZE);
-    char *temp = malloc(COMMAND_LINE_SIZE);
-    temp = strtok(line, "#"); //Eliminamos los comentarios si cogemos args[0]
-    //char temp[ARGS_SIZE] = *args[0]; //Solamente cogemos lo que hay en 0. Más tarde 
     
-    
-    *args[tokens] = strtok(temp, Separadores); // token -> my
-    free(temp);
-    printf("Token %d: %s", tokens, args[tokens]);
-    while (args[tokens] != NULL){ // asdkjasd jkasdjkasd jaksdj#jsdhkadf
+    args[tokens] = strtok(line, Separadores); // token -> my
+
+    while ((args[tokens] != NULL) && (args[tokens][0] != "#")){ // asdkjasd jkasdjkasd jaksdj#jsdhkadf
         tokens++;
-        *args[tokens] = strtok(*args[tokens], Separadores); //leer la siguiente palabra
-        printf("Token %d: %s", tokens, args[tokens]);
+        printf("Token %d: %s", tokens, args[tokens-1]);
+        args[tokens] = strtok(NULL, Separadores); //leer la siguiente palabra
     }
-        args[tokens]=NULL;
-        return tokens;
+    args[tokens]=NULL;
+    return tokens;
 }
 
 /*
