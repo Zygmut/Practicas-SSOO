@@ -1,13 +1,11 @@
-#define _POSIX_C_SOURCE 200112L
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
 #define ARGS_SIZE 64
+
 #define VERDE "\x1b[32m"
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
@@ -92,11 +90,8 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 
 int parse_args(char **args, char *line){
     int tokens = 0;
-    //*args[tokens] = malloc(COMMAND_LINE_SIZE);
+    
     args[tokens] = strtok(line, "#"); //Eliminamos los comentarios si cogemos args[0]
-    //char temp[ARGS_SIZE] = *args[0]; //Solamente cogemos lo que hay en 0. Más tarde 
-    
-    
     args[tokens] = strtok(args[tokens], Separadores); // token -> my
     
     printf("Token %d: %s\n", tokens, args[tokens]);
@@ -120,7 +115,34 @@ indicar que se ha ejecutado un comando interno.
 */
 
 int check_internal(char **args){
+    int internal = 1;
+    if (strcmp(args[0], "cd") == 0){
+        internal_cd(args);
 
+    }else if (strcmp(args[0], "export") == 0){
+        internal_export(args);
+
+    }else if (strcmp(args[0], "source") == 0){
+        internal_source(args);
+
+    }else if (strcmp(args[0], "jobs") == 0){
+        internal_jobs(args);
+
+    }else if (strcmp(args[0], "fg") == 0){
+        internal_fg(args);
+
+    }else if (strcmp(args[0], "bg") == 0){
+        internal_bg(args);
+
+    }else if (strcmp(args[0], "exit") == 0){
+        exit(0);        
+    }else{ //No hemos encontrado ningun comando interno
+        internal = 0;
+    }
+    return internal;
+    
+
+    
 }
 
 /*
