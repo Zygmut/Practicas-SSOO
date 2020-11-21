@@ -73,7 +73,7 @@ int execute_line(char *line){
         check_internal(tokens);
     }
 
-    //for para imprimir todos los tokens
+    
 }
 
 /*
@@ -91,11 +91,11 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 int parse_args(char **args, char *line){
     int tokens = 0;
     
-    args[tokens] = strtok(line, "#"); //Eliminamos los comentarios si cogemos args[0]
-    args[tokens] = strtok(args[tokens], Separadores); // token -> my
+    args[tokens] = strtok(line, "#"); //Eliminamos los comentarios
+    args[tokens] = strtok(args[tokens], Separadores); // Cogemos el primer argumento
     
     printf("Token %d: %s\n", tokens, args[tokens]);
-    while (args[tokens] != NULL){ // asdkjasd jkasdjkasd jaksdj#jsdhkadf
+    while (args[tokens] != NULL){ 
         tokens++;
         args[tokens] = strtok(NULL, Separadores); //leer la siguiente palabra
         printf("Token %d: %s\n", tokens, args[tokens]); 
