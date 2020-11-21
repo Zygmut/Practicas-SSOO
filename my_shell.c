@@ -8,7 +8,7 @@
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
 #define ROSA "\x1b[38m" //pista: no es rosa
-const char Separadores[5] = " \t\n\r";
+const char Separadores[5] = " \n\t\r";
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -23,14 +23,12 @@ int internal_fg(char **args);
 int internal_bg(char **args);
 
 int main(){
-    
     char line[COMMAND_LINE_SIZE];
     while(1){
         if(read_line(line)){
             execute_line(line);
         }
     }
-    
     return -1;
 }
 
@@ -70,11 +68,12 @@ int execute_line(char *line){
     printf("He leido la linea : %s", line);
     char *tokens[ARGS_SIZE];
 
-    if(*tokens < 0){
-        return -1;
-    }
+    printf("He llegado aqui");
     parse_args(tokens, line);
     check_internal(tokens);
+    
+    
+
     //for para imprimir todos los tokens
 }
 
@@ -92,7 +91,7 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 
 int parse_args(char **args, char *line){
     int tokens = 0;
-    
+    //line = strtok(line, "#");
     args[tokens] = strtok(line, Separadores); // token -> my
 
     while ((args[tokens] != NULL) && (args[tokens][0] != "#")){ // asdkjasd jkasdjkasd jaksdj#jsdhkadf

@@ -1,5 +1,9 @@
+#define _POSIX_C_SOURCE 200112L
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
@@ -7,7 +11,7 @@
 #define VERDE "\x1b[32m"
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
-#define ROSA "\x1b[38m" //pista: no es rosa
+
 const char Separadores[5] = " \t\n\r";
 
 char *read_line(char *line);
@@ -25,10 +29,8 @@ int internal_bg(char **args);
 int main(){
     
     char line[COMMAND_LINE_SIZE];
-    while(1){
-        if(read_line(line)){
-            execute_line(line);
-        }
+    while(read_line(line)){
+        execute_line(line);
     }
     
     return -1;
@@ -67,13 +69,12 @@ interno.
 */
 
 int execute_line(char *line){
-    printf("He leido la linea : %s", line);
-    char **tokens;
-    if((tokens = malloc(COMMAND_LINE_SIZE)) < 0){ //Tratamiento del malloc
-        return -1;    
+    char *tokens[ARGS_SIZE];
+    
+    if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
+        check_internal(tokens);
     }
-    parse_args(tokens, line);
-    check_internal(tokens);
+
     //for para imprimir todos los tokens
 }
 
@@ -92,18 +93,17 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 int parse_args(char **args, char *line){
     int tokens = 0;
     //*args[tokens] = malloc(COMMAND_LINE_SIZE);
-    char *temp = malloc(COMMAND_LINE_SIZE);
-    temp = strtok(line, "#"); //Eliminamos los comentarios si cogemos args[0]
+    args[tokens] = strtok(line, "#"); //Eliminamos los comentarios si cogemos args[0]
     //char temp[ARGS_SIZE] = *args[0]; //Solamente cogemos lo que hay en 0. Más tarde 
     
     
-    *args[tokens] = strtok(temp, Separadores); // token -> my
-    free(temp);
-    printf("Token %d: %s", tokens, args[tokens]);
+    args[tokens] = strtok(args[tokens], Separadores); // token -> my
+    
+    printf("Token %d: %s\n", tokens, args[tokens]);
     while (args[tokens] != NULL){ // asdkjasd jkasdjkasd jaksdj#jsdhkadf
         tokens++;
-        *args[tokens] = strtok(*args[tokens], Separadores); //leer la siguiente palabra
-        printf("Token %d: %s", tokens, args[tokens]);
+        args[tokens] = strtok(NULL, Separadores); //leer la siguiente palabra
+        printf("Token %d: %s\n", tokens, args[tokens]); 
     }
         args[tokens]=NULL;
         return tokens;
