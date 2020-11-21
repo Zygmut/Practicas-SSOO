@@ -1,14 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
 #define ARGS_SIZE 64
+
 #define VERDE "\x1b[32m"
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
-#define ROSA "\x1b[38m" //pista: no es rosa
-const char Separadores[5] = " \n\t\r";
+
+const char Separadores[5] = " \t\n\r";
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -23,12 +25,12 @@ int internal_fg(char **args);
 int internal_bg(char **args);
 
 int main(){
+    
     char line[COMMAND_LINE_SIZE];
-    while(1){
-        if(read_line(line)){
-            execute_line(line);
-        }
+    while(read_line(line)){
+        execute_line(line);
     }
+    
     return -1;
 }
 
@@ -65,16 +67,13 @@ interno.
 */
 
 int execute_line(char *line){
-    printf("He leido la linea : %s", line);
     char *tokens[ARGS_SIZE];
-
-    printf("He llegado aqui");
-    parse_args(tokens, line);
-    check_internal(tokens);
     
-    
+    if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
+        check_internal(tokens);
+    }
 
-    //for para imprimir todos los tokens
+    
 }
 
 /*
@@ -91,16 +90,18 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 
 int parse_args(char **args, char *line){
     int tokens = 0;
-    //line = strtok(line, "#");
-    args[tokens] = strtok(line, Separadores); // token -> my
-
-    while ((args[tokens] != NULL) && (args[tokens][0] != "#")){ // asdkjasd jkasdjkasd jaksdj#jsdhkadf
+    
+    args[tokens] = strtok(line, "#"); //Eliminamos los comentarios
+    args[tokens] = strtok(args[tokens], Separadores); // Cogemos el primer argumento
+    
+    printf("Token %d: %s\n", tokens, args[tokens]);
+    while (args[tokens] != NULL){ 
         tokens++;
-        printf("Token %d: %s", tokens, args[tokens-1]);
         args[tokens] = strtok(NULL, Separadores); //leer la siguiente palabra
+        printf("Token %d: %s\n", tokens, args[tokens]); 
     }
-    args[tokens]=NULL;
-    return tokens;
+        args[tokens]=NULL;
+        return tokens;
 }
 
 /*
@@ -114,7 +115,34 @@ indicar que se ha ejecutado un comando interno.
 */
 
 int check_internal(char **args){
+    int internal = 1;
+    if (strcmp(args[0], "cd") == 0){
+        internal_cd(args);
 
+    }else if (strcmp(args[0], "export") == 0){
+        internal_export(args);
+
+    }else if (strcmp(args[0], "source") == 0){
+        internal_source(args);
+
+    }else if (strcmp(args[0], "jobs") == 0){
+        internal_jobs(args);
+
+    }else if (strcmp(args[0], "fg") == 0){
+        internal_fg(args);
+
+    }else if (strcmp(args[0], "bg") == 0){
+        internal_bg(args);
+
+    }else if (strcmp(args[0], "exit") == 0){
+        exit(0);        
+    }else{ //No hemos encontrado ningun comando interno
+        internal = 0;
+    }
+    return internal;
+    
+
+    
 }
 
 /*
