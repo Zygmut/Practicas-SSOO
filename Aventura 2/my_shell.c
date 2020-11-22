@@ -216,7 +216,23 @@ En este nivel, muestra por pantalla el ​nuevo valor​ mediante la función �
 para comprobar su funcionamiento (en niveles posteriores eliminarlo). 
 */
 int internal_export(char **args){
-
+    
+    if(args[2] != NULL){
+        perror("Invalid syntax");
+        return -1;
+    }
+    args[1] = strtok(args[1], "=");
+    
+    printf("args[1]: %s\n", args[1]);
+    char *env = getenv(args[1]);
+    if(!env){
+        perror("Not a valid variable");
+        return -1;
+    }
+    args[2] = strtok(NULL, "=");
+    printf("args[2]: %s\n", args[2]);
+    setenv(env,args[2], 1);
+    printf("%s = %s",args[1],args[2]);
 }
 
 /*
