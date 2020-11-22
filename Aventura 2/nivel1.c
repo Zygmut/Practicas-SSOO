@@ -1,9 +1,6 @@
-#define _POSIX_C_SOURCE 200112L
-
 #include <stdio.h>
-#include <stdlib.h> 
-#include <string.h>  // strtok
-#include <unistd.h>  // chdir
+#include <stdlib.h>
+#include <string.h>
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
@@ -14,7 +11,6 @@
 #define BLANCO "\x1b[37m"
 
 const char Separadores[5] = " \t\n\r";
-const char advanced_cd[4] = "\\\"\'";
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -76,6 +72,8 @@ int execute_line(char *line){
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
         check_internal(tokens);
     }
+
+    
 }
 
 /*
@@ -141,79 +139,21 @@ int check_internal(char **args){
     }else{ //No hemos encontrado ningun comando interno
         internal = 0;
     }
-
     return internal;
+    
+
+    
 }
 
 /*
-Utiliza la llamada al sistema ​chdir​() para cambiar de directorio.En este nivel,
-a modo de test, muestra por pantalla el directorio al que nos hemos trasladado. 
-Para ello usa la llamada al sistema ​getcwd​() (en niveles posteriores eliminarlo).
-
-Si queréis que se os actualice el prompt al cambiar de directorio, podéis cambiar 
-el valor de la variable de entorno PWD mediante ​setenv​() y utilizarla después en 
-la función imprimir_prompt(), aunque también podéis usar ​getcwd​() en vez de PWD 
-para imprimir el prompt. El comando "cd" sin argumentos ha de enviar al valor de 
-la variable HOME. Adicionalmente se puede implementar el ​cd avanzado.
- 
-En ese caso en la sintaxis tendremos que admitir más de 2 elementos. 
-Podéis emplear la función strchr​() para determinar si el token guardado 
-en args[1] contiene comillas simples o dobles, o el caràcter \
+En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_cd(char **args){
-    char pdir[COMMAND_LINE_SIZE];
-    if(args[1] != NULL){
-        //Check the directory
-        
-        strcpy(pdir, args[1]); 
-        for (int m = 0; m < 3; m++){
-            if(strchr(pdir, advanced_cd[m]) != NULL){ // Using advanced cd 
-                //En todos los casos, tenemos que eliminar \, " o ' . Por lo tanto, puede seguir un procedimiento genérico
-                int l = -1; //pdir counter
-                for(int i = 1; args[i]!= NULL; i++){
-                    l++; //Sumamos aqui ya que, en el caso que solo tengamos un argumento, queremos reemplazar ' ' por '\0'
-                    for(int j = 0; args[i][j] != '\0'; j++){
-                        
-                        if(args[i][j] != advanced_cd[m]){
-                            pdir[l]=args[i][j];
-                            l++;
-                        }
-                    }
-                    pdir[l] = ' ' ; //Añadimos el espacio
-                }
-                pdir[l] = '\0';
-                break;
-            }
-        }
-        
-        if(chdir(pdir) < 0){
-            perror("chdir() Error: ");
-        }
-    }else{
-        if(chdir(getenv("HOME")) < 0 ){
-            perror("chdir() Error: ");
-        } //Go to home
-    }
 
-    //Update PWD
-    char cwd[COMMAND_LINE_SIZE];
-    if(getcwd(cwd, sizeof(cwd)) == NULL){
-        perror("getcwd() Error: ");
-    }else{
-        setenv("PWD", cwd, 1);
-    }
 }
 
 /*
-Descompone en tokens el argumento NOMBRE=VALOR (almacenado en args[1]),
-por un lado el nombre y por otro el valor.Notifica de la sintaxis correcta
-si los argumentos no son los adecuados, utilizando la salida estándar de 
-errores ​stderr​.En este nivel, muestra por pantalla mediante la función ​getenv​()
-el ​valor inicial​ dela variable (en niveles posteriores eliminarlo).
-Utiliza la función ​setenv​() para asignar el nuevo valor.
-
-En este nivel, muestra por pantalla el ​nuevo valor​ mediante la función ​getenv​()
-para comprobar su funcionamiento (en niveles posteriores eliminarlo). 
+En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_export(char **args){
 
