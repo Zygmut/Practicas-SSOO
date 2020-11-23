@@ -28,6 +28,8 @@ int internal_jobs(char **args);
 int internal_fg(char **args);
 int internal_bg(char **args);
 
+int advanced_syntax(char* line);
+
 int main(){
     
     char line[COMMAND_LINE_SIZE];
@@ -161,39 +163,35 @@ Podéis emplear la función strchr​() para determinar si el token guardado
 en args[1] contiene comillas simples o dobles, o el caràcter \
 */
 int internal_cd(char **args){
-    char pdir[COMMAND_LINE_SIZE];
+    char *pdir;
+    pdir = malloc(COMMAND_LINE_SIZE);
+    if(!pdir){
+        fprintf(stderr,"Not enough space");
+        return -1;
+    }
+    
     if(args[1] != NULL){
         //Check the directory
-        
-        strcpy(pdir, args[1]); 
-        for (int m = 0; m < 3; m++){
-            if(strchr(pdir, advanced_cd[m]) != NULL){ // Using advanced cd 
-                //En todos los casos, tenemos que eliminar \, " o ' . Por lo tanto, puede seguir un procedimiento genérico
-                int l = -1; //pdir counter
-                for(int i = 1; args[i]!= NULL; i++){
-                    l++; //Sumamos aqui ya que, en el caso que solo tengamos un argumento, queremos reemplazar ' ' por '\0'
-                    for(int j = 0; args[i][j] != '\0'; j++){
-                        
-                        if(args[i][j] != advanced_cd[m]){
-                            pdir[l]=args[i][j];
-                            l++;
-                        }
-                    }
-                    pdir[l] = ' ' ; //Añadimos el espacio
-                }
-                pdir[l] = '\0';
-                break;
+
+        for(int i = 1; args[i]!=NULL; i++){
+            strcat(pdir, args[i]);
+            if(args[i+1]!=NULL){
+                strcat(pdir, " ");
             }
+
         }
-        
+
+        advanced_syntax(pdir);
+       
         if(chdir(pdir) < 0){
             perror("chdir() Error: ");
         }
-    }else{
-        if(chdir(getenv("HOME")) < 0 ){
-            perror("chdir() Error: ");
-        } //Go to home
-    }
+        strcpy(pdir, "\0"); //Preparacion para el siguiente pdir
+        free(pdir);
+    
+    }else if(chdir(getenv("HOME")) < 0 ){ //Go home
+        perror("chdir() Error: ");
+    } 
 
     //Update PWD
     char cwd[COMMAND_LINE_SIZE];
@@ -202,6 +200,7 @@ int internal_cd(char **args){
     }else{
         setenv("PWD", cwd, 1);
     }
+    
 }
 
 /*
@@ -216,23 +215,20 @@ En este nivel, muestra por pantalla el ​nuevo valor​ mediante la función �
 para comprobar su funcionamiento (en niveles posteriores eliminarlo). 
 */
 int internal_export(char **args){
-    
     if(args[2] != NULL){
-        perror("Invalid syntax");
+        fprintf(stderr, "Invalid syntax [NAME=VALUE]\n");
         return -1;
     }
     args[1] = strtok(args[1], "=");
     
-    printf("args[1]: %s\n", args[1]);
-    char *env = getenv(args[1]);
-    if(!env){
-        perror("Not a valid variable");
+    printf("\nVariable: %s\n", args[1]);
+    if(!getenv(args[1])){
+        fprintf(stderr, "Not a valid variable\n");
         return -1;
     }
     args[2] = strtok(NULL, "=");
-    printf("args[2]: %s\n", args[2]);
-    setenv(env,args[2], 1);
-    printf("%s = %s",args[1],args[2]);
+    printf("Value: %s\n", args[2]);
+    setenv(args[1],args[2], 1);
 }
 
 /*
@@ -261,4 +257,30 @@ En este nivel, imprime una explicación de que hará esta función (en fases pos
 */
 int internal_bg(char **args){
     
+}
+
+/*
+    Pasada una linea, devuelve esa misma linea quitando los valores de advanced_cd 
+*/
+int advanced_syntax(char *line){
+    char return_line[COMMAND_LINE_SIZE];
+    int return_line_index = 0;
+    int found;
+    
+    for(int i = 0; line[i] != '\0'; i++){ //recorrido de la linea
+    found= 0;
+        for(int j = 0; j < 3 &&(found == 0); j++){ //recorrido de advanced_cd
+            if (line[i]==advanced_cd[j]){
+                found = 1;
+            }
+        } 
+        if(found == 0){
+            return_line[return_line_index] = line[i];
+            return_line_index++;
+        }
+
+    }
+    return_line[return_line_index] = '\0';
+    
+    strcpy(line, return_line);
 }
