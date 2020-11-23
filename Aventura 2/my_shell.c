@@ -170,10 +170,9 @@ int internal_cd(char **args){
         return -1;
     }
     
-    if(args[1] != NULL){
-        //Check the directory
+    if(args[1] != NULL){ //Do we have a second argument?
 
-        for(int i = 1; args[i]!=NULL; i++){
+        for(int i = 1; args[i]!=NULL; i++){ //create the line of all the arguments
             strcat(pdir, args[i]);
             if(args[i+1]!=NULL){
                 strcat(pdir, " ");
@@ -181,15 +180,20 @@ int internal_cd(char **args){
 
         }
 
-        advanced_syntax(pdir);
+        advanced_syntax(pdir); //Remove advanced_cd values
        
         if(chdir(pdir) < 0){
             perror("chdir() Error: ");
+           //SI DA ERROR PDIR PETA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+             
+            strcpy(pdir, "\0"); //Preparacion para el siguiente pdir
+            free(pdir);
+            return -1;
         }
         strcpy(pdir, "\0"); //Preparacion para el siguiente pdir
         free(pdir);
     
-    }else if(chdir(getenv("HOME")) < 0 ){ //Go home
+    }else if(chdir(getenv("HOME")) < 0 ){ //Go homo
         perror("chdir() Error: ");
     } 
 
@@ -215,19 +219,17 @@ En este nivel, muestra por pantalla el ​nuevo valor​ mediante la función �
 para comprobar su funcionamiento (en niveles posteriores eliminarlo). 
 */
 int internal_export(char **args){
-    if(args[2] != NULL){
+    if(args[2] != NULL){ //only export
         fprintf(stderr, "Invalid syntax [NAME=VALUE]\n");
         return -1;
     }
-    args[1] = strtok(args[1], "=");
+    args[1] = strtok(args[1], "="); //Variable de entorno
     
-    printf("\nVariable: %s\n", args[1]);
-    if(!getenv(args[1])){
-        fprintf(stderr, "Not a valid variable\n");
+    if(!getenv(args[1])){ 
+        fprintf(stderr, "Not a valid enviroment variable\n");
         return -1;
     }
-    args[2] = strtok(NULL, "=");
-    printf("Value: %s\n", args[2]);
+    args[2] = strtok(NULL, "="); //Valor de la variable de entorno
     setenv(args[1],args[2], 1);
 }
 
@@ -260,27 +262,34 @@ int internal_bg(char **args){
 }
 
 /*
-    Pasada una linea, devuelve esa misma linea quitando los valores de advanced_cd 
+    USER METHODS
+*/
+
+/*
+    Pasada una linea por argumento devuelve, en esa miesma linea, su valor sin los caracteres de advanced_cd. Returns 1 si ha hehco una conversion y 0 si no ha hehco nada
 */
 int advanced_syntax(char *line){
     char return_line[COMMAND_LINE_SIZE];
     int return_line_index = 0;
     int found;
+    int conversion = 0;
     
     for(int i = 0; line[i] != '\0'; i++){ //recorrido de la linea
-    found= 0;
+    found = 0;
         for(int j = 0; j < 3 &&(found == 0); j++){ //recorrido de advanced_cd
             if (line[i]==advanced_cd[j]){
-                found = 1;
+                found = 1; //encontrado un valor de advanced_cd
+                conversion = 1; //Se pondra varias veces, pero es mejor que hacer un if todo el rato
             }
         } 
-        if(found == 0){
-            return_line[return_line_index] = line[i];
+        if(found == 0){ //Si no hemos encontrado un valor de advanced_cd, copiamos la linea
+            return_line[return_line_index] = line[i]; 
             return_line_index++;
         }
 
     }
-    return_line[return_line_index] = '\0';
+    return_line[return_line_index] = '\0'; //Terminacion del return_line
     
-    strcpy(line, return_line);
+    strcpy(line, return_line); //Pasamos la linea modificada 
+    return conversion;
 }
