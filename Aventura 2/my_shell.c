@@ -62,8 +62,14 @@ Devuelve un puntero a la línea leída.
 
 char *read_line(char *line){
     printf(VERDE"%s"BLANCO":"AZUL"%s"BLANCO"%s ", getenv("USERNAME"), getenv("PWD"), PROMPT);
-    fgets(line, COMMAND_LINE_SIZE, stdin);
-    return line;
+    if(feof(stdin) == 0){ // Non EOF command
+        fgets(line, COMMAND_LINE_SIZE, stdin);
+        return line;
+    }else{
+        printf("🤠 See you, space cowboy 🤠\n");
+        exit(1);
+    }
+    
 }
 
 /*
@@ -76,7 +82,17 @@ int execute_line(char *line){
     char *tokens[ARGS_SIZE];
     
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
-        check_internal(tokens);
+        if(check_internal(tokens) == 0){
+            if(fork() == 0){
+                printf("son\n");
+                if(execvp(tokens[0], tokens) == -1){
+                    fprintf(stderr, "Command %s not found", tokens[0]);
+                }
+            }else{  //Wait to dodge the zombie apocalipse (zombie child)
+                // wait(); . Ponga ocmo lo ponga esta mierda peta. Me duele el cuerpo, too bad!
+                printf("father\n");
+            }
+        }
     }
 }
 
@@ -234,10 +250,34 @@ int internal_export(char **args){
 }
 
 /*
-En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
+Se comprueban los argumentos y se muestra la sintaxis en caso de no sercorrecta.Mediante la función ​fopen​() se abre en modo lectura el fichero de comandos3especificado por consola.Se indica error si el fichero no existe.Se va leyendo línea a línea el fichero mediante ​fgets​() y se pasa la línea leída anuestra función execute_line(). Hay que realizar un ​fflush​ del stream del ficherotras leer cada línea.Se cierra el fichero de comandos con ​fclose​()
 */
 int internal_source(char **args){
+    
 
+    if(args[1] != NULL){
+        FILE *file_p;  //File pointer
+
+        file_p = fopen(args[1], "r"); //Open file with name args[1] on only read
+        if(file_p != NULL){
+            // Leer linea a linea el archivo
+
+            char buffer[COMMAND_LINE_SIZE];
+            while(fgets(buffer, COMMAND_LINE_SIZE,file_p)!= NULL){ //existe una linea 
+                execute_line(buffer);
+                if(fflush(file_p)!= 0){
+                    fprintf(stderr, "Error while flushing [%s]", args[1]);
+                }
+            }
+            if(fclose(file_p) != 0){
+                fprintf(stderr, "Error while closing file [%s]", args[1]);
+            }
+        }else{
+            fprintf(stderr, "%s: No such file or directory\n", args[1]); 
+        }  
+    }else{ //syntax incorrecta
+        printf("source requieres an additional parameter");
+    }
 }
 
 /*
