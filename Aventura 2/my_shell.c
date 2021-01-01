@@ -35,12 +35,22 @@ int internal_bg(char **args);
 
 int advanced_syntax(char* line);
 
+struct info_process { //objeto hilos/procesos
+    pid_t pid;
+    char status;
+    char cmd[COMMAND_LINE_SIZE];
+};
+static struct info_process jobs_list[N_JOBS]; //array de procesos. El 0 es foreground
+
 int main(){
     
     char line[COMMAND_LINE_SIZE];
     int status;
     signal(SIGCHLD, reaper);
     signal(SIGINT, ctrlc);
+    for (int i = 0; i < N_JOBS ; i++){
+        jobs_list[i] = new(info_process);
+    }
     while(read_line(line)){
         execute_line(line);
     }
@@ -48,7 +58,7 @@ int main(){
     return -1;
 }
 
-//aqui se guardará el pid del proceso hijo en primer plano
+
 
 struct info_process { //objeto hilos/procesos
     pid_t pid;
