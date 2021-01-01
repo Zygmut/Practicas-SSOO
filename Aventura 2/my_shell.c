@@ -52,7 +52,7 @@ int main(){
     signal(SIGINT, ctrlc);
     for (int i = 0; i < N_JOBS ; i++){
         struct info_process newJob;
-        jobs_list[i] = newJob;
+        jobs_list[i] = newJob inicializate puta!;
     }
     while(read_line(line)){
         execute_line(line);
@@ -161,7 +161,9 @@ void reaper (int signum){
 
 void ctrlc (int signum){
     signal(SIGINT, ctrlc); //C es mierda y por si acaso hay que refrescar
-    kill(jobs_list[0].pid, SIGTERM);//esto aborta el proceso en foreground
+    //if (!minishell){
+        kill(jobs_list[0].pid, SIGTERM);//esto aborta el proceso en foreground
+    //}
     jobs_list[0].pid = 0; //desbloquea al padre
 }
 /*
