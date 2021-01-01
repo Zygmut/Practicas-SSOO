@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
+#include <signal.h> //señales
 #include <sys/wait.h> //para la funcion wait
 #include <sys/types.h> //por si acaso
 #include <string.h>  // strtok
@@ -14,6 +15,8 @@
 #define VERDE "\x1b[32m"
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
+
+#define N_JOBS 30 //tamaño del array de trabajos/hijos/procesos
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
@@ -36,12 +39,23 @@ int main(){
     
     char line[COMMAND_LINE_SIZE];
     int status;
+    signal(SIGCHLD, reaper);
+    signal(SIGINT, ctrlc);
     while(read_line(line)){
         execute_line(line);
     }
-    
+
     return -1;
 }
+
+//aqui se guardará el pid del proceso hijo en primer plano
+
+struct info_process { //objeto hilos/procesos
+    pid_t pid;
+    char status;
+    char cmd[COMMAND_LINE_SIZE];
+};
+static struct info_process jobs_list[N_JOBS]; //array de procesos. El 0 es foreground
 
 /*
 
@@ -84,21 +98,28 @@ interno.
 int execute_line(char *line){
     char *tokens[ARGS_SIZE];
     int status; //no se para que sirve, pero asi el wait funciona 
-    
+    //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
+    jobs_list[0].cmd = *line;
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
-            int pid = fork();
+            pid_t pid = fork();
+            //digamos que aqui va el proceso para distingir entre un proceso foreground y uno background
+            //si es foreground, sucederia la siguiente linea
+            jobs_list[0].pid = pid;
+            jobs_list[0].status = 'E'; //Proceso en ejecución
             if(pid == 0){ //proceso hijo
-                printf("son\n");
-                printf("EQUISDE\n");
+                signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
+                signal(SIGINT,SIG_IGN); //El hijo ignora esta señal
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
                 }
                 exit(0);
             }else if(pid > 0){  //proceso padre
+                signal(SIGCHLD, reaper);
                 //Wait to dodge the zombie apocalipse (zombie child)
-                wait(&status); // Ponga ocmo lo ponga esta mierda peta. Me duele el cuerpo, too bad!
-                printf("father\n");
+                if(jobs_list[0].pid > 0){ //el padre se pausa mientras haya un proceso hijo en primer plano
+                    pause();
+                }
             }else{ //proceso aborto capoeira da morte radioactiva full petao
                 perror("fork");                
             }
@@ -106,6 +127,33 @@ int execute_line(char *line){
     }
 }
 
+/*
+Manejador de señales que va a recuperar el estado del proceso hijo que se ha detenido y lo trata para
+evitar el estado zombie.
+*/
+void reaper (int signum){
+    signal(SIGCHLD, reaper); //para refrescar la acción apropiada (C es una mierda)
+    int childStatus; //para almacenar el estado del hijo
+    pid_t terminatedProcess = waitpid(-1, childStatus, WNOHANG); //coge el pid del hijo que ha terminado
+    if (jobs_list[0].pid == terminatedProcess){
+        if(childStatus == 0){
+            jobs_list[0].status = 'F'; //proceso finalizado
+        }else{
+            jobs_list[0].status = 'D'; //Proceso detenido
+        }
+        printf("Ha terminado el proceso hijo con pid %d, con el estado %c",jobs_list[0].pid ,jobs_list[0].status);
+        jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
+        jobs_list[0].status = 'F'; //proceso finalizado
+        jobs_list[0].cmd = NULL; //se borra el cmd asociado
+    }
+    
+}
+
+void ctrlc (int signum){
+    signal(SIGINT, ctrlc); //C es mierda y por si acaso hay que refrescar
+    kill(jobs_list[0].pid, SIGTERM);//esto aborta el proceso en foreground
+    jobs_list[0].pid = 0; //desbloquea al padre
+}
 /*
 Trocea la línea obtenida en tokens, mediante la función strtok(), y obtiene el vector de 
 los diferentes tokens, args[]. No se han de tener en cuenta los comentarios (precedidos por #). 
