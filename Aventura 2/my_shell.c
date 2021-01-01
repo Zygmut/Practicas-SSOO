@@ -147,17 +147,14 @@ evitar el estado zombie.
 void reaper (int signum){
     signal(SIGCHLD, reaper); //para refrescar la acción apropiada (C es una mierda)
     int childStatus; //para almacenar el estado del hijo
-    pid_t terminatedProcess = waitpid(-1, childStatus, WNOHANG); //coge el pid del hijo que ha terminado
-    if (jobs_list[0].pid == terminatedProcess){
-        if(childStatus == 0){
+    pid_t terminatedProcess;
+    while((waitpid(-1, childStatus, WNOHANG) > 0)){ //busca todos los hijos que puedan haber terminado a la vez y los cierra
+        if (jobs_list[0].pid == terminatedProcess){
+            jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
             jobs_list[0].status = 'F'; //proceso finalizado
-        }else{
-            jobs_list[0].status = 'D'; //Proceso detenido
+            strcpy(jobs_list[0].cmd, NULL); //se borra el cmd asociado
         }
-        printf("Ha terminado el proceso hijo con pid %d, con el estado %c",jobs_list[0].pid ,jobs_list[0].status);
-        jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
-        jobs_list[0].status = 'F'; //proceso finalizado
-        strcpy(jobs_list[0].cmd, NULL); //se borra el cmd asociado
+        printf("Ha terminado el proceso hijo con pid %d, con el estado %c",terminatedProcess ,childStatus);
     }
     
 }
