@@ -32,6 +32,8 @@ int internal_source(char **args);
 int internal_jobs(char **args);
 int internal_fg(char **args);
 int internal_bg(char **args);
+void reaper (int signum);
+void ctrlc (int signum);
 
 int advanced_syntax(char* line);
 
@@ -49,7 +51,8 @@ int main(){
     signal(SIGCHLD, reaper);
     signal(SIGINT, ctrlc);
     for (int i = 0; i < N_JOBS ; i++){
-        jobs_list[i] = new(info_process);
+        struct info_process newJob;
+        jobs_list[i] = newJob;
     }
     while(read_line(line)){
         execute_line(line);
@@ -109,7 +112,7 @@ int execute_line(char *line){
     char *tokens[ARGS_SIZE];
     int status; //no se para que sirve, pero asi el wait funciona 
     //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
-    jobs_list[0].cmd = *line;
+    strcpy(jobs_list[0].cmd, line);
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
             pid_t pid = fork();
@@ -154,7 +157,7 @@ void reaper (int signum){
         printf("Ha terminado el proceso hijo con pid %d, con el estado %c",jobs_list[0].pid ,jobs_list[0].status);
         jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
         jobs_list[0].status = 'F'; //proceso finalizado
-        jobs_list[0].cmd = NULL; //se borra el cmd asociado
+        strcpy(jobs_list[0].cmd, NULL); //se borra el cmd asociado
     }
     
 }
