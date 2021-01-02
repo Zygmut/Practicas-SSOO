@@ -2,11 +2,11 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
-#include <signal.h> //señales
-#include <sys/wait.h> //para la funcion wait
-#include <sys/types.h> //por si acaso
-#include <string.h>  // strtok
-#include <unistd.h>  // chdir
+#include <signal.h>     //señales
+#include <sys/wait.h>   //para la funcion wait
+#include <sys/types.h>  //por si acaso
+#include <string.h>     // strtok
+#include <unistd.h>     // chdir
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
@@ -20,6 +20,7 @@
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
+const char minishell = "./my_shell";
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -42,6 +43,7 @@ struct info_process { //objeto hilos/procesos
     char status;
     char cmd[COMMAND_LINE_SIZE];
 };
+
 static struct info_process jobs_list[N_JOBS]; //array de procesos. El 0 es foreground
 
 int main(){
@@ -50,9 +52,14 @@ int main(){
     int status;
     signal(SIGCHLD, reaper);
     signal(SIGINT, ctrlc);
+    struct info_process *jobs_list = malloc(N_JOBS*sizeof(struct info_process));
     for (int i = 0; i < N_JOBS ; i++){
-        struct info_process newJob;
-        jobs_list[i] = newJob inicializate puta!;
+        struct info_process newJob = malloc(sizeof(struct info_process));
+        newJob->status = "N";
+        newJob->pid = 0;
+        
+        jobs_list[i] = newJob;
+        
     }
     while(read_line(line)){
         execute_line(line);
@@ -61,14 +68,6 @@ int main(){
     return -1;
 }
 
-
-
-struct info_process { //objeto hilos/procesos
-    pid_t pid;
-    char status;
-    char cmd[COMMAND_LINE_SIZE];
-};
-static struct info_process jobs_list[N_JOBS]; //array de procesos. El 0 es foreground
 
 /*
 
@@ -113,6 +112,7 @@ int execute_line(char *line){
     int status; //no se para que sirve, pero asi el wait funciona 
     //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
     strcpy(jobs_list[0].cmd, line);
+    
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
             pid_t pid = fork();
@@ -121,17 +121,29 @@ int execute_line(char *line){
             jobs_list[0].pid = pid;
             jobs_list[0].status = 'E'; //Proceso en ejecución
             if(pid == 0){ //proceso hijo
+                
                 signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
-                signal(SIGINT,SIG_IGN); //El hijo ignora esta señal
+                signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
                 }
                 exit(0);
             }else if(pid > 0){  //proceso padre
-                signal(SIGCHLD, reaper);
+                //signal(SIGCHLD, reaper);
                 //Wait to dodge the zombie apocalipse (zombie child)
                 if(jobs_list[0].pid > 0){ //el padre se pausa mientras haya un proceso hijo en primer plano
-                    pause();
+                    if (strcmp(jobs_list[0].cmd, minishell)){
+                        signal(SIGINT, SIG_IGN);
+                        signal(SIGCHLD, SIG_DFL);
+                        do{
+                            int minishellStatus;
+                            waitpid(jobs_list[0].pid, minishellStatus, WUNTRACED);
+                        }while(minishellStatus != 0);
+                        signal(SIGINT, ctrlc);
+                        signal(SIGCHLD, reaper);
+                    }else{
+                        pause();
+                    }
                 }
             }else{ //proceso aborto capoeira da morte radioactiva full petao
                 perror("fork");                
@@ -148,7 +160,8 @@ void reaper (int signum){
     signal(SIGCHLD, reaper); //para refrescar la acción apropiada (C es una mierda)
     int childStatus; //para almacenar el estado del hijo
     pid_t terminatedProcess;
-    while((waitpid(-1, childStatus, WNOHANG) > 0)){ //busca todos los hijos que puedan haber terminado a la vez y los cierra
+
+    while(terminatedProcess = (waitpid(-1, childStatus, WNOHANG)) > 0){ //busca todos los hijos que puedan haber terminado a la vez y los cierra
         if (jobs_list[0].pid == terminatedProcess){
             jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
             jobs_list[0].status = 'F'; //proceso finalizado
@@ -161,9 +174,7 @@ void reaper (int signum){
 
 void ctrlc (int signum){
     signal(SIGINT, ctrlc); //C es mierda y por si acaso hay que refrescar
-    //if (!minishell){
-        kill(jobs_list[0].pid, SIGTERM);//esto aborta el proceso en foreground
-    //}
+    kill(jobs_list[0].pid, SIGTERM);//esto aborta el proceso en foreground
     jobs_list[0].pid = 0; //desbloquea al padre
 }
 /*
