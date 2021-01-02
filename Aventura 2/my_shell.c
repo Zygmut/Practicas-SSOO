@@ -2,40 +2,31 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
+#include <signal.h>     //señales
 #include <sys/wait.h>   //para la funcion wait
 #include <sys/types.h>  //por si acaso
 #include <string.h>     // strtok
 #include <unistd.h>     // chdir
-#include <signal.h>     // Libreria de mierda que maneja señales  
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
 #define ARGS_SIZE 64
+#define minishell "./my_shell"
 
 #define VERDE "\x1b[32m"
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
 
-#define N_JOBS 1
+#define N_JOBS 30 //tamaño del array de trabajos/hijos/procesos
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
-
-// Estructura para el estado de un proceso
-struct info_process {
-    pid_t pid;
-    char status;    // Ninguno, Ejecutandose, Detenido, Finalizado [N,E,D,F]
-    char cmd[COMMAND_LINE_SIZE]     // Comando que esta siendo ejecutado
-};
-
-static struct info_process *father;
-static struct info_process jobs_list[N_JOBS];  // Donde SON_COUNT es la cantidad de procesos hijos que permitimos tener
+//const char minishell[COMMAND_LINE_SIZE] = "./my_shell";
 
 char *read_line(char *line);
 int execute_line(char *line);
 int parse_args(char **args, char *line);
 int check_internal(char **args);
-int reaper(int signal);
 
 int internal_cd(char **args);
 int internal_export(char **args);
@@ -43,21 +34,47 @@ int internal_source(char **args);
 int internal_jobs(char **args);
 int internal_fg(char **args);
 int internal_bg(char **args);
+void reaper(int signum);
+void ctrlc(int signum);
 
 int advanced_syntax(char* line);
+
+struct info_process { //objeto hilos/procesos
+    pid_t pid;
+    char status;
+    char cmd[COMMAND_LINE_SIZE];
+};
+
+static struct info_process jobs_list[N_JOBS]; //array de procesos. El 0 es foreground
 
 int main(){
     
     char line[COMMAND_LINE_SIZE];
     int status;
+    signal(SIGCHLD, reaper);
+    signal(SIGINT, ctrlc);
+    struct info_process *jobs_list = malloc(N_JOBS*sizeof(struct info_process));
+    for (int i = 0; i < N_JOBS ; i++){
+        struct info_process newJob = {.pid = 0, .status = 'N'};
+
+        // printf("pid : %ld\t Status: %s\n", (long) newJob.pid, &newJob.status);
+        jobs_list[i] = newJob;
+        
+    }
+
+    memset(line, 0, sizeof(line));
     while(read_line(line)){
         execute_line(line);
+        memset(line, 0, sizeof(line));
     }
-    
+
     return -1;
 }
 
+
 /*
+
+
 Lo más simple es usar un símbolo como constante simbólica, por ejemplo: #define PROMPT ‘$’, 
 o un char const PROMPT =’$’. A la hora de imprimirlo será de tipo carácter, %c, y le podéis 
 añadir un espacio en blanco para separar la línea de comandos. 
@@ -95,38 +112,92 @@ interno.
 
 int execute_line(char *line){
     char *tokens[ARGS_SIZE];
-    int status; // No se para que sirve, pero asi el wait funciona 
-    
+    //int status; //no se para que sirve, pero asi el wait funciona 
+    //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
+    strcpy(jobs_list[0].cmd, line);
+    pid_t pid;
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
-        
+        printf("execute_line()-> PID padre: %d (%s)\n", getpid(), minishell);  
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
-            signal(SIGCHLD, reaper);     // Llevo como 20 minutos y me acabo de dar cuenta que esto es un action listener. fuck off 
+            signal(SIGCHLD, reaper);           
             pid = fork();
-            strcpy(sons[0].cmd, line);  // Copiar el comando a la cola de procesos
-            sons[0].status = "E";   // Proceso hijo esta siendo ejecutado
-            
+            //digamos que aqui va el proceso para distingir entre un proceso foreground y uno background
+            //si es foreground, sucederia la siguiente linea
+            //jobs_list[0].pid = pid;
+            jobs_list[0].status = 'E'; //Proceso en ejecución
             if(pid == 0){ //proceso hijo
-                jobs_list[0].pid = getpid();    // Obtenemos el pid y lo guardamos en la cola de procesos 
-                printf("son\n");
-                printf("EQUISDE\n");
+                jobs_list[0].pid = getpid();
+                printf("execute_line()-> PID hijo: %d (%s)\n", jobs_list[0].pid, jobs_list[0].cmd);
+                signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
+                signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
+                    //printf("Tokens[0]: %s   Pid[0]: %d", tokens[0], jobs_list[0].pid);
+                    
+                    //raise(SIGCHLD);
+                    exit(0);
                 }
+                //printf("Hola que tal estas mate");
                 exit(0);
+                //printf("salgo\n");
+                //raise(SIGCHLD);
+                //jobs_list[0].pid = 0;
+                
             }else if(pid > 0){  //proceso padre
-                jobs_list[0].pid = pid;     // Coger el pid del hijo, en el caso que exista, claro
+                jobs_list[0].pid = pid;
+                //printf("wacamole %d", jobs_list[0].pid);
+                //signal(SIGINT, ctrlc);
+                //signal(SIGCHLD, reaper);
                 //Wait to dodge the zombie apocalipse (zombie child)
-                wait(&status); // Ponga ocmo lo ponga esta mierda peta. Me duele el cuerpo, too bad!
-                printf("father\n");
-            }else{ //proceso aborto capoeira da morte radioactiva full petao
-                perror("fork");                
-            }
-
-            
+                while ((jobs_list[0].pid != 0)){
+                    //printf("estoy en el bucle y deberia pararme");
+                    pause();
+                }
+                
+            }                  
         }
     }
 }
 
+/*
+Manejador de señales que va a recuperar el estado del proceso hijo que se ha detenido y lo trata para
+evitar el estado zombie.
+*/
+void reaper(int signum){
+    signal(SIGCHLD, reaper); //para refrescar la acción apropiada (C es una mierda)
+    pid_t terminatedProcess;
+
+    while((terminatedProcess = waitpid(-1, NULL, WNOHANG)) > 0){ //busca todos los hijos que puedan haber terminado a la vez y los cierra | NUll == childsatus
+        if (jobs_list[0].pid == terminatedProcess){
+            printf("reaper() -> proceso hijo %d (%s) finalizado por la señal %d", terminatedProcess, jobs_list[0].cmd, signum);
+            jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
+            jobs_list[0].status = 'F'; //proceso finalizado
+            memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE); //se borra el cmd asociado
+        }
+        printf("Ha terminado el proceso hijo con pid %d \n", terminatedProcess);
+    }    
+}
+
+void ctrlc (int signum){
+    pid_t pid = getpid();
+    printf("\n");
+    printf("ctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)\n", pid, jobs_list[0].pid , jobs_list[0].cmd);
+    if(jobs_list[0].pid > 0){ // Hay proceso en foreground 
+        if(strcmp(jobs_list[0].cmd, minishell)){ // Proceso en foreground es un minishell
+            printf("ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
+        }else{
+            printf("ctrlc() -> Señal %d enviada a %d (%s)\n", signum, jobs_list[0].pid, jobs_list[0].cmd);
+            kill(jobs_list[0].pid, SIGTERM); // Esto aborta el proceso en foreground
+            //jobs_list[0].pid = 0; // Desbloquea al padre
+        }
+    }else{
+        printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
+    }
+    
+
+    signal(SIGINT, ctrlc); //C es mierda y por si acaso hay que refrescar
+    //raise(SIGCHLD);
+}
 /*
 Trocea la línea obtenida en tokens, mediante la función strtok(), y obtiene el vector de 
 los diferentes tokens, args[]. No se han de tener en cuenta los comentarios (precedidos por #). 
@@ -195,24 +266,6 @@ int check_internal(char **args){
 }
 
 /*
-    Desecha los cadaveres de los hijos 
-*/
-void reaper(int signal){
-    signal(SIGCHLD, reaper);   // Lo dice adelaida. Wtf
-    pid_t ended;    // Necesitamos esta variable para el while extraño 
-
-    while ((ended=waitpid(-1, NULL, WNOHANG))>0) {  // Pero que 
-        if(ended == jobs_list[0].pid){  // Ha acabado el proceso en fore
-            printf("Foreground process finished\n");
-            jobs_list[0].pid = 0;       // PID a 0
-            memset(jobs_list[0].cmd, 0, 1);    // Pone un 0 en la primera posicion del string, "eliminandolo"
-            jobs_list[0].status = "F";
-        }
-        printf("Reaper just killed %d!!!\n", ended);
-    }  
-}
-
-/*
 Utiliza la llamada al sistema ​chdir​() para cambiar de directorio.En este nivel,
 a modo de test, muestra por pantalla el directorio al que nos hemos trasladado. 
 Para ello usa la llamada al sistema ​getcwd​() (en niveles posteriores eliminarlo).
@@ -231,7 +284,7 @@ int internal_cd(char **args){
     char *pdir;
     pdir = malloc(COMMAND_LINE_SIZE);
     if(!pdir){
-        fprintf(stderr,"Not enough space");
+        fprintf(stderr, "Not enough space");
         return -1;
     }
     
@@ -302,7 +355,6 @@ int internal_export(char **args){
 Se comprueban los argumentos y se muestra la sintaxis en caso de no sercorrecta.Mediante la función ​fopen​() se abre en modo lectura el fichero de comandos3especificado por consola.Se indica error si el fichero no existe.Se va leyendo línea a línea el fichero mediante ​fgets​() y se pasa la línea leída anuestra función execute_line(). Hay que realizar un ​fflush​ del stream del ficherotras leer cada línea.Se cierra el fichero de comandos con ​fclose​()
 */
 int internal_source(char **args){
-    
 
     if(args[1] != NULL){
         FILE *file_p;  //File pointer
@@ -333,21 +385,21 @@ int internal_source(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_jobs(char **args){
-
+    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_fg(char **args){
-
+    printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_bg(char **args){
-    
+    printf("This is internal_bg\n t resumes suspended jobs in the background\n");
 }
 
 /*

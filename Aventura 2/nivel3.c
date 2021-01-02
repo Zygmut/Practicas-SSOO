@@ -2,10 +2,10 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
-#include <sys/wait.h> //para la funcion wait
+#include <sys/wait.h>  //para la funcion wait
 #include <sys/types.h> //por si acaso
-#include <string.h>  // strtok
-#include <unistd.h>  // chdir
+#include <string.h>    // strtok
+#include <unistd.h>    // chdir
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
@@ -44,8 +44,6 @@ int main(){
 }
 
 /*
-
-
 Lo más simple es usar un símbolo como constante simbólica, por ejemplo: #define PROMPT ‘$’, 
 o un char const PROMPT =’$’. A la hora de imprimirlo será de tipo carácter, %c, y le podéis 
 añadir un espacio en blanco para separar la línea de comandos. 
@@ -294,21 +292,21 @@ int internal_source(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_jobs(char **args){
-
+    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_fg(char **args){
-
+    printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_bg(char **args){
-    
+    printf("This is internal_bg\n t resumes suspended jobs in the background\n");
 }
 
 /*

@@ -237,13 +237,14 @@ int internal_export(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_source(char **args){
-
+    printf("This is internal_source\n  import functions into other bash scripts or to run scripts\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_jobs(char **args){
+    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
 
 }
 
@@ -251,6 +252,7 @@ int internal_jobs(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_fg(char **args){
+    printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
 
 }
 
@@ -258,7 +260,7 @@ int internal_fg(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_bg(char **args){
-    
+        printf("This is internal_bg\n t resumes suspended jobs in the background\n");
 }
 
 /*

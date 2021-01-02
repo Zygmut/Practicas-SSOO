@@ -149,40 +149,40 @@ int check_internal(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_cd(char **args){
-
+    printf("This is internal_cd\n Change the current working directory\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_export(char **args){
-
+    printf("This is internal_export\n marks an environment variable to be exported with any newly forked child processes and thus it allows a child process to inherit all marked variables\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_source(char **args){
-
+    printf("This is internal_source\n  import functions into other bash scripts or to run scripts\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_jobs(char **args){
-
+    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_fg(char **args){
-
+    printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_bg(char **args){
-    
+    printf("This is internal_bg\n t resumes suspended jobs in the background\n");
 }
