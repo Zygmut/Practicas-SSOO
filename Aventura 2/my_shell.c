@@ -2,11 +2,14 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
+
 #include <signal.h>     //señales
+
 #include <sys/wait.h>   //para la funcion wait
 #include <sys/types.h>  //por si acaso
 #include <string.h>     // strtok
 #include <unistd.h>     // chdir
+
 
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
@@ -17,16 +20,29 @@
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
 
+
 #define N_JOBS 30 //tamaño del array de trabajos/hijos/procesos
+
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
 //const char minishell[COMMAND_LINE_SIZE] = "./my_shell";
 
+// Estructura para el estado de un proceso
+struct info_process {
+    pid_t pid;
+    char status;    // Ninguno, Ejecutandose, Detenido, Finalizado [N,E,D,F]
+    char cmd[COMMAND_LINE_SIZE]     // Comando que esta siendo ejecutado
+};
+
+static struct info_process *father;
+static struct info_process jobs_list[N_JOBS];  // Donde SON_COUNT es la cantidad de procesos hijos que permitimos tener
+
 char *read_line(char *line);
 int execute_line(char *line);
 int parse_args(char **args, char *line);
 int check_internal(char **args);
+int reaper(int signal);
 
 int internal_cd(char **args);
 int internal_export(char **args);
@@ -73,8 +89,6 @@ int main(){
 
 
 /*
-
-
 Lo más simple es usar un símbolo como constante simbólica, por ejemplo: #define PROMPT ‘$’, 
 o un char const PROMPT =’$’. A la hora de imprimirlo será de tipo carácter, %c, y le podéis 
 añadir un espacio en blanco para separar la línea de comandos. 
@@ -112,6 +126,7 @@ interno.
 
 int execute_line(char *line){
     char *tokens[ARGS_SIZE];
+
     //int status; //no se para que sirve, pero asi el wait funciona 
     //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
     strcpy(jobs_list[0].cmd, line);
@@ -130,6 +145,7 @@ int execute_line(char *line){
                 printf("execute_line()-> PID hijo: %d (%s)\n", jobs_list[0].pid, jobs_list[0].cmd);
                 signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
                 signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
+
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
                     //printf("Tokens[0]: %s   Pid[0]: %d", tokens[0], jobs_list[0].pid);
@@ -144,6 +160,7 @@ int execute_line(char *line){
                 //jobs_list[0].pid = 0;
                 
             }else if(pid > 0){  //proceso padre
+
                 jobs_list[0].pid = pid;
                 //printf("wacamole %d", jobs_list[0].pid);
                 //signal(SIGINT, ctrlc);
@@ -155,6 +172,7 @@ int execute_line(char *line){
                 }
                 
             }                  
+
         }
     }
 }
@@ -263,6 +281,24 @@ int check_internal(char **args){
     }
 
     return internal;
+}
+
+/*
+    Desecha los cadaveres de los hijos 
+*/
+void reaper(int signal){
+    signal(SIGCHLD, reaper);   // Lo dice adelaida. Wtf
+    pid_t ended;    // Necesitamos esta variable para el while extraño 
+
+    while ((ended=waitpid(-1, NULL, WNOHANG))>0) {  // Pero que 
+        if(ended == jobs_list[0].pid){  // Ha acabado el proceso en fore
+            printf("Foreground process finished\n");
+            jobs_list[0].pid = 0;       // PID a 0
+            memset(jobs_list[0].cmd, 0, 1);    // Pone un 0 en la primera posicion del string, "eliminandolo"
+            jobs_list[0].status = "F";
+        }
+        printf("Reaper just killed %d!!!\n", ended);
+    }  
 }
 
 /*
