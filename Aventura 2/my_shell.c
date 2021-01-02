@@ -11,6 +11,7 @@
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
 #define ARGS_SIZE 64
+#define minishell "./my_shell"
 
 #define VERDE "\x1b[32m"
 #define AZUL "\x1b[34m"
@@ -20,7 +21,7 @@
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
-const char minishell = "./my_shell";
+//const char minishell[COMMAND_LINE_SIZE] = "./my_shell";
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -33,8 +34,8 @@ int internal_source(char **args);
 int internal_jobs(char **args);
 int internal_fg(char **args);
 int internal_bg(char **args);
-void reaper (int signum);
-void ctrlc (int signum);
+void reaper(int signum);
+void ctrlc(int signum);
 
 int advanced_syntax(char* line);
 
@@ -54,15 +55,17 @@ int main(){
     signal(SIGINT, ctrlc);
     struct info_process *jobs_list = malloc(N_JOBS*sizeof(struct info_process));
     for (int i = 0; i < N_JOBS ; i++){
-        struct info_process newJob = malloc(sizeof(struct info_process));
-        newJob->status = "N";
-        newJob->pid = 0;
-        
+        struct info_process newJob = {.pid = 0, .status = 'N'};
+
+        // printf("pid : %ld\t Status: %s\n", (long) newJob.pid, &newJob.status);
         jobs_list[i] = newJob;
         
     }
+
+    memset(line, 0, sizeof(line));
     while(read_line(line)){
         execute_line(line);
+        memset(line, 0, sizeof(line));
     }
 
     return -1;
@@ -111,43 +114,53 @@ int execute_line(char *line){
     char *tokens[ARGS_SIZE];
     int status; //no se para que sirve, pero asi el wait funciona 
     //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
-    strcpy(jobs_list[0].cmd, line);
     
+   
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
+        printf("execute_line()-> PID padre: %d (%s)\n", getpid(), minishell);  
+        
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
+            
+            signal(SIGCHLD, reaper);
+           
             pid_t pid = fork();
+            strcpy(jobs_list[0].cmd, line);
             //digamos que aqui va el proceso para distingir entre un proceso foreground y uno background
             //si es foreground, sucederia la siguiente linea
-            jobs_list[0].pid = pid;
+            //jobs_list[0].pid = pid;
             jobs_list[0].status = 'E'; //Proceso en ejecución
             if(pid == 0){ //proceso hijo
-                
+
+                jobs_list[0].pid = getpid();
+                printf("execute_line()-> PID hijo: %d (%s) \n", jobs_list[0].pid, &jobs_list[0].cmd);
                 signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
                 signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
+                    printf("Tokens[0]: %s   Pid[0]: %d", tokens[0], jobs_list[0].pid);
+                    
+                    //raise(SIGCHLD);
+                    //exit(0);
                 }
+                printf("Hola que tal estas mate");
                 exit(0);
+                //printf("salgo\n");
+                //raise(SIGCHLD);
+                //jobs_list[0].pid = 0;
+                
             }else if(pid > 0){  //proceso padre
-                //signal(SIGCHLD, reaper);
+                jobs_list[0].pid = pid;
+                //printf("wacamole %d", jobs_list[0].pid);
+                signal(SIGINT, ctrlc);
+                signal(SIGCHLD, reaper);
                 //Wait to dodge the zombie apocalipse (zombie child)
-                if(jobs_list[0].pid > 0){ //el padre se pausa mientras haya un proceso hijo en primer plano
-                    if (strcmp(jobs_list[0].cmd, minishell)){
-                        signal(SIGINT, SIG_IGN);
-                        signal(SIGCHLD, SIG_DFL);
-                        do{
-                            int minishellStatus;
-                            waitpid(jobs_list[0].pid, minishellStatus, WUNTRACED);
-                        }while(minishellStatus != 0);
-                        signal(SIGINT, ctrlc);
-                        signal(SIGCHLD, reaper);
-                    }else{
-                        pause();
-                    }
-                }
-            }else{ //proceso aborto capoeira da morte radioactiva full petao
-                perror("fork");                
-            }
+                
+                
+                while (jobs_list[0].pid != 0){
+                    printf("estoy en el bucle y deberia pararme");
+                    pause();
+                }  
+            }                
         }
     }
 }
@@ -158,24 +171,44 @@ evitar el estado zombie.
 */
 void reaper (int signum){
     signal(SIGCHLD, reaper); //para refrescar la acción apropiada (C es una mierda)
-    int childStatus; //para almacenar el estado del hijo
+    //int *childStatus; //para almacenar el estado del hijo
     pid_t terminatedProcess;
-
-    while(terminatedProcess = (waitpid(-1, childStatus, WNOHANG)) > 0){ //busca todos los hijos que puedan haber terminado a la vez y los cierra
+    printf("Vamoh allá");
+    
+    while(terminatedProcess = (waitpid(-1, NULL, WNOHANG)) > 0){ //busca todos los hijos que puedan haber terminado a la vez y los cierra | NUll == childsatus
+        printf("Culo para azotar localizado");
         if (jobs_list[0].pid == terminatedProcess){
+            printf("reaper() -> proceso hijo %d (%s) finalizado por la señal %d", terminatedProcess, &jobs_list[0].cmd, signum);
+            
             jobs_list[0].pid = 0; //desbloqueamos al minishell eliminando el pid del proceso en foreground
             jobs_list[0].status = 'F'; //proceso finalizado
-            strcpy(jobs_list[0].cmd, NULL); //se borra el cmd asociado
+            memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE); //se borra el cmd asociado
         }
-        printf("Ha terminado el proceso hijo con pid %d, con el estado %c",terminatedProcess ,childStatus);
+       
+        printf("Ha terminado el proceso hijo con pid %d", terminatedProcess);
     }
+    printf("Arrivederci");
     
 }
 
 void ctrlc (int signum){
+    pid_t pid = getpid();
+
+    printf("\nctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)", pid, jobs_list[0].pid , &jobs_list[0].cmd);
+    if(jobs_list[0].pid > 0){ // Hay proceso en foreground 
+        if(strcmp(jobs_list[0].cmd, minishell) == 0){ // Proceso en foreground es un minishell
+            printf("\nctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
+        }else{
+            printf("\nctrlc() -> Señal %d enviada a %d (%s)\n", signum, jobs_list[0].pid, &jobs_list[0].cmd);
+            kill(jobs_list[0].pid, SIGTERM); // Esto aborta el proceso en foreground
+            //jobs_list[0].pid = 0; // Desbloquea al padre
+        }
+    }else{
+        printf("\nctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
+    }
+    
+
     signal(SIGINT, ctrlc); //C es mierda y por si acaso hay que refrescar
-    kill(jobs_list[0].pid, SIGTERM);//esto aborta el proceso en foreground
-    jobs_list[0].pid = 0; //desbloquea al padre
 }
 /*
 Trocea la línea obtenida en tokens, mediante la función strtok(), y obtiene el vector de 
@@ -263,7 +296,7 @@ int internal_cd(char **args){
     char *pdir;
     pdir = malloc(COMMAND_LINE_SIZE);
     if(!pdir){
-        fprintf(stderr,"Not enough space");
+        fprintf(stderr, "Not enough space");
         return -1;
     }
     
@@ -334,7 +367,6 @@ int internal_export(char **args){
 Se comprueban los argumentos y se muestra la sintaxis en caso de no sercorrecta.Mediante la función ​fopen​() se abre en modo lectura el fichero de comandos3especificado por consola.Se indica error si el fichero no existe.Se va leyendo línea a línea el fichero mediante ​fgets​() y se pasa la línea leída anuestra función execute_line(). Hay que realizar un ​fflush​ del stream del ficherotras leer cada línea.Se cierra el fichero de comandos con ​fclose​()
 */
 int internal_source(char **args){
-    
 
     if(args[1] != NULL){
         FILE *file_p;  //File pointer
@@ -365,21 +397,21 @@ int internal_source(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_jobs(char **args){
-
+    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_fg(char **args){
-
+    printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
 }
 
 /*
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_bg(char **args){
-    
+    printf("This is internal_bg\n t resumes suspended jobs in the background\n");
 }
 
 /*
