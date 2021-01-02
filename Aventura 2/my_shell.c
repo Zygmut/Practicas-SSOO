@@ -127,7 +127,7 @@ int execute_line(char *line){
             jobs_list[0].status = 'E'; //Proceso en ejecución
             if(pid == 0){ //proceso hijo
                 jobs_list[0].pid = getpid();
-                printf("execute_line()-> PID hijo: %d (%s) \n", jobs_list[0].pid, jobs_list[0].cmd);
+                printf("execute_line()-> PID hijo: %d (%s)\n", jobs_list[0].pid, jobs_list[0].cmd);
                 signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
                 signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 if(execvp(tokens[0], tokens) == -1){
@@ -137,7 +137,7 @@ int execute_line(char *line){
                     //raise(SIGCHLD);
                     exit(0);
                 }
-                printf("Hola que tal estas mate");
+                //printf("Hola que tal estas mate");
                 exit(0);
                 //printf("salgo\n");
                 //raise(SIGCHLD);
@@ -149,12 +149,12 @@ int execute_line(char *line){
                 //signal(SIGINT, ctrlc);
                 //signal(SIGCHLD, reaper);
                 //Wait to dodge the zombie apocalipse (zombie child)
-                
-            }
-            while ((jobs_list[0].pid != 0)){
-                    printf("estoy en el bucle y deberia pararme");
+                while ((jobs_list[0].pid != 0)){
+                    //printf("estoy en el bucle y deberia pararme");
                     pause();
-                }                  
+                }
+                
+            }                  
         }
     }
 }
@@ -180,18 +180,18 @@ void reaper(int signum){
 
 void ctrlc (int signum){
     pid_t pid = getpid();
-
-    printf("\nctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)", pid, jobs_list[0].pid , jobs_list[0].cmd);
+    printf("\n");
+    printf("ctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)\n", pid, jobs_list[0].pid , jobs_list[0].cmd);
     if(jobs_list[0].pid > 0){ // Hay proceso en foreground 
-        if(strcmp(jobs_list[0].cmd, minishell) == 0){ // Proceso en foreground es un minishell
-            printf("\nctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
+        if(strcmp(jobs_list[0].cmd, minishell)){ // Proceso en foreground es un minishell
+            printf("ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
         }else{
-            printf("\nctrlc() -> Señal %d enviada a %d (%s)", signum, jobs_list[0].pid, jobs_list[0].cmd);
+            printf("ctrlc() -> Señal %d enviada a %d (%s)\n", signum, jobs_list[0].pid, jobs_list[0].cmd);
             kill(jobs_list[0].pid, SIGTERM); // Esto aborta el proceso en foreground
             //jobs_list[0].pid = 0; // Desbloquea al padre
         }
     }else{
-        printf("\nctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
+        printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
     }
     
 
