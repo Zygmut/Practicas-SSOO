@@ -95,7 +95,7 @@ int execute_line(char *line){
                 exit(0);
             }else if(pid > 0){  //proceso padre
                 //Wait to dodge the zombie apocalipse (zombie child)
-                wait(&status); // Ponga ocmo lo ponga esta mierda peta. Me duele el cuerpo, too bad!
+                wait(&status); // Ponga como lo ponga esta mierda peta. Me duele el cuerpo, too bad!
                 printf("father\n");
             }else{ //proceso aborto capoeira da morte radioactiva full petao
                 perror("fork");                
@@ -258,7 +258,12 @@ int internal_export(char **args){
 }
 
 /*
-Se comprueban los argumentos y se muestra la sintaxis en caso de no sercorrecta.Mediante la función ​fopen​() se abre en modo lectura el fichero de comandos3especificado por consola.Se indica error si el fichero no existe.Se va leyendo línea a línea el fichero mediante ​fgets​() y se pasa la línea leída anuestra función execute_line(). Hay que realizar un ​fflush​ del stream del ficherotras leer cada línea.Se cierra el fichero de comandos con ​fclose​()
+Se comprueban los argumentos y se muestra la sintaxis en caso de no sercorrecta.
+Mediante la función ​fopen​() se abre en modo lectura el fichero de comandos 
+especificado por consola.Se indica error si el fichero no existe.Se va leyendo línea
+a línea el fichero mediante ​fgets​() y se pasa la línea leída anuestra función 
+execute_line(). Hay que realizar un ​fflush​ del stream del ficherotras leer cada línea.
+Se cierra el fichero de comandos con ​fclose​()
 */
 int internal_source(char **args){
     
