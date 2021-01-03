@@ -219,7 +219,7 @@ int jobs_list_add(pid_t pid, char status, char *cmd){
         active_n_jobs++;
         jobs_list[active_n_jobs].pid = pid;
         jobs_list[active_n_jobs].status = status;
-        jobs_list[active_n_jobs].cmd = cmd;
+        strcpy(jobs_list[active_n_jobs].cmd, cmd); revisar esta linea
     }else{
         fprintf(stderr, "Maximum background jobs reached.\n");
     }
@@ -251,7 +251,7 @@ int jobs_list_remove(int pos){
 int jobs_list_find(pid_t pid){
     int pos;
     int found = 0;
-    for(int i = 0; (i<= active_n_jobs) && (found == 0), i++){
+    for(int i = 0; (i<= active_n_jobs) && (found == 0); i++){
         if(jobs_list[i].pid != pid){
             found = 1;
             pos = i;
