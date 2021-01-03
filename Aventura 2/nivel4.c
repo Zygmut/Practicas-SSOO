@@ -21,7 +21,6 @@
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
-//const char minishell[COMMAND_LINE_SIZE] = "./my_shell";
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -36,11 +35,8 @@ int internal_fg(char **args);
 int internal_bg(char **args);
 void reaper(int signum);
 void ctrlc(int signum);
-void ctrlz(int signum);
 
 int advanced_syntax(char* line);
-
-static int active_n_jobs;
 
 struct info_process { //objeto hilos/procesos
     pid_t pid;
@@ -54,14 +50,12 @@ int main(){
     
     char line[COMMAND_LINE_SIZE];
     int status;
-    active_n_jobs = 0; 
     signal(SIGCHLD, reaper);
     signal(SIGINT, ctrlc);
     struct info_process *jobs_list = malloc(N_JOBS*sizeof(struct info_process));
     for (int i = 0; i < N_JOBS ; i++){
         struct info_process newJob = {.pid = 0, .status = 'N'};
 
-        // printf("pid : %ld\t Status: %s\n", (long) newJob.pid, &newJob.status);
         jobs_list[i] = newJob;
         
     }
@@ -77,8 +71,6 @@ int main(){
 
 
 /*
-
-
 Lo más simple es usar un símbolo como constante simbólica, por ejemplo: #define PROMPT ‘$’, 
 o un char const PROMPT =’$’. A la hora de imprimirlo será de tipo carácter, %c, y le podéis 
 añadir un espacio en blanco para separar la línea de comandos. 
@@ -93,7 +85,6 @@ Para forzar el vaciado del buffer de salida se puede utilizar la función fflush
 Imprime el prompt.
 Lee una linea de la consola (stdin) con la función fgets().
 Devuelve un puntero a la línea leída. 
-
 */
 
 char *read_line(char *line){
@@ -116,8 +107,6 @@ interno.
 
 int execute_line(char *line){
     char *tokens[ARGS_SIZE];
-    //int status; //no se para que sirve, pero asi el wait funciona 
-    //Se pide que se guarde la linea de comandos ahi donde esta puesto antes de llamar al parse_args (?) asi que alle voy
     strcpy(jobs_list[0].cmd, line);
     pid_t pid;
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
@@ -125,9 +114,6 @@ int execute_line(char *line){
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
             signal(SIGCHLD, reaper);           
             pid = fork();
-            //digamos que aqui va el proceso para distingir entre un proceso foreground y uno background
-            //si es foreground, sucederia la siguiente linea
-            //jobs_list[0].pid = pid;
             jobs_list[0].status = 'E'; //Proceso en ejecución
             if(pid == 0){ //proceso hijo
                 jobs_list[0].pid = getpid();
@@ -136,25 +122,13 @@ int execute_line(char *line){
                 signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
-                    //printf("Tokens[0]: %s   Pid[0]: %d", tokens[0], jobs_list[0].pid);
-                    
-                    //raise(SIGCHLD);
                     exit(0);
                 }
-                //printf("Hola que tal estas mate");
                 exit(0);
-                //printf("salgo\n");
-                //raise(SIGCHLD);
-                //jobs_list[0].pid = 0;
                 
             }else if(pid > 0){  //proceso padre
                 jobs_list[0].pid = pid;
-                //printf("wacamole %d", jobs_list[0].pid);
-                //signal(SIGINT, ctrlc);
-                //signal(SIGCHLD, reaper);
-                //Wait to dodge the zombie apocalipse (zombie child)
                 while ((jobs_list[0].pid != 0)){
-                    //printf("estoy en el bucle y deberia pararme");
                     pause();
                 }
                 
@@ -182,87 +156,6 @@ void reaper(int signum){
     }    
 }
 
-/*
-    Controlador de la señal Ctrl + Z
-*/
-void ctrlz(int signum){
-    signal(SIGTSTP, ctrlz); // Hay que refrescar la señal ya que C no es muy inteligente que digamos
-    pid_t pid = getpid();
-    printf("\n");
-    printf("ctrlz() -> Soy el proceso con pid %d, el proceso en foreground es %d (%s)\n", pid, jobs_list[0].pid, jobs_list[0].cmd);
-    if(jobs_list[0].pid > 0){
-        if(strcmp(jobs_list[0].cmd, minishell)){
-            printf("ctrlz() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
-
-        }else{
-            printf("ctrlz() -> Señal %d enviada a %d\n", signum, jobs_list[0].cmd);
-
-            jobs_list_add(jobs_list[0].pid, 'D', jobs_list[0].cmd);
-            // No podemos hacer un jobs_list_remove ya que en tal caso cogeria el job que hemos puesto ahora mismo
-            // Tal vez podria ser posible eliminarlo primero y luego añadirlo y al no estar seguro, lo hare asi
-
-            jobs_list[0].pid = 0;
-            jobs_list[0].status = 'F';
-            memset(jobs_list[pos].cmd, 0, COMMAND_LINE_SIZE); 
-        }
-    }else{
-        printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum);
-
-    }
-}
-
-/*
-    Adds a job to the job list
-*/
-int jobs_list_add(pid_t pid, char status, char *cmd){
-    if(active_n_jobs<N_JOBS){
-        active_n_jobs++;
-        jobs_list[active_n_jobs].pid = pid;
-        jobs_list[active_n_jobs].status = status;
-        jobs_list[active_n_jobs].cmd = cmd;
-    }else{
-        fprintf(stderr, "Maximum background jobs reached.\n");
-    }
-    
-}
-
-/*
-    Removes a job to the job list
-*/
-int jobs_list_remove(int pos){
-    if(active_n_jobs > -1){
-        if(pos == active_n_jobs){
-            jobs_list[pos].pid = 0;
-            jobs_list[pos].status = "F";
-            memset(jobs_list[pos].cmd, 0, COMMAND_LINE_SIZE); 
-        }else{
-            jobs_list[pos] = jobs_list[active_n_jobs];
-        }
-        active_n_jobs--;
-    }else{
-        fprintf(stderr, "No jobs are currently being executed.\n");
-    }
-    
-}
-
-/*
-    Finds a job to the job list
-*/
-int jobs_list_find(pid_t pid){
-    int pos;
-    int found = 0;
-    for(int i = 0; (i<= active_n_jobs) && (found == 0), i++){
-        if(jobs_list[i].pid != pid){
-            found = 1;
-            pos = i;
-        }
-    }
-    return pos;
-}
-
-/*
-    Controlador de la señal Ctrl + C
-*/
 void ctrlc (int signum){
     pid_t pid = getpid();
     printf("\n");
@@ -270,11 +163,9 @@ void ctrlc (int signum){
     if(jobs_list[0].pid > 0){ // Hay proceso en foreground 
         if(strcmp(jobs_list[0].cmd, minishell)){ // Proceso en foreground es un minishell
             printf("ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
-
         }else{
             printf("ctrlc() -> Señal %d enviada a %d (%s)\n", signum, jobs_list[0].pid, jobs_list[0].cmd);
             kill(jobs_list[0].pid, SIGTERM); // Esto aborta el proceso en foreground
-            //jobs_list[0].pid = 0; // Desbloquea al padre
         }
     }else{
         printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
@@ -282,7 +173,6 @@ void ctrlc (int signum){
     
 
     signal(SIGINT, ctrlc); //C es mierda y por si acaso hay que refrescar
-    //raise(SIGCHLD);
 }
 /*
 Trocea la línea obtenida en tokens, mediante la función strtok(), y obtiene el vector de 
@@ -388,8 +278,6 @@ int internal_cd(char **args){
        
         if(chdir(pdir) < 0){
             perror("chdir() Error: ");
-           //SI DA ERROR PDIR PETA !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-             
             strcpy(pdir, "\0"); //Preparacion para el siguiente pdir
             free(pdir);
             return -1;
@@ -471,9 +359,7 @@ int internal_source(char **args){
 En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
 */
 int internal_jobs(char **args){
-    for(int i = 1; i<=active_n_jobs; i++){
-        printf("[%d] PID: %d\tLine: %s\tStatus: %c\n", i, jobs_list[0].pid, jobs_list[0].cmd, jobs_list[0].status);
-    }
+    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
 }
 
 /*
