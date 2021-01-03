@@ -268,7 +268,7 @@ int internal_bg(char **args){
 */
 
 /*
-    Pasada una linea por argumento devuelve, en esa miesma linea, su valor sin los caracteres de advanced_cd. Returns 1 si ha hehco una conversion y 0 si no ha hehco nada
+    Pasada una linea por argumento devuelve, en esa misma linea, su valor sin los caracteres de advanced_cd. Returns 1 si ha hehco una conversion y 0 si no ha hehco nada
 */
 int advanced_syntax(char *line){
     char return_line[COMMAND_LINE_SIZE];
