@@ -43,6 +43,7 @@ int jobs_list_find(pid_t pid);
 int jobs_list_remove(int pos);
 
 int advanced_syntax(char* line);
+char *remove_and(char **tokens);
 
 static int n_pids; // Numero de procesos activos 
 
@@ -133,11 +134,15 @@ int execute_line(char *line){
             pid = fork();
             if(pid == 0){ //proceso hijo
                 //jobs_list[0].pid = getpid();  
-                printf("[execute_line()-> PID hijo: %d (%s)]\n", jobs_list[0].pid, jobs_list[0].cmd);
-               
+                printf("[execute_line()-> PID hijo: %d (%s)]\n", jobs_list[1].pid, &jobs_list[1].cmd);
                 signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
                 signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 signal(SIGTSTP, SIG_IGN);
+                printf("Primer sleep de 15 \n");
+                sleep(15);             
+                printf("segundo sleep de 10 \n");
+                sleep(10);
+                printf("Tercer sleep\n");
                 
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found\n", tokens[0]);
@@ -205,7 +210,7 @@ void ctrlz(int signum){
 
         }else{
             printf("[ctrlz() -> Señal %d enviada a %s]\n", signum, jobs_list[0].cmd);
-
+            kill(jobs_list[0].pid, SIGSTOP);
             jobs_list_add(jobs_list[0].pid, 'D', jobs_list[0].cmd);
             // No podemos hacer un jobs_list_remove ya que en tal caso cogeria el job que hemos puesto ahora mismo
             // Tal vez podria ser posible eliminarlo primero y luego añadirlo y al no estar seguro, lo hare asi
@@ -216,8 +221,8 @@ void ctrlz(int signum){
         }
     }else{
         printf("[ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground]\n", signum);
-
     }
+    signal(SIGTSTP, ctrlz);
 }
 
 /*
@@ -283,7 +288,7 @@ int is_background(char **tokens){  // CAMBIO de * a **
 
     if(tokens[i-1][0] == '&'){
         background = 1;
-        tokens[i-1] = NULL;     
+        //tokens[i-1] = NULL;     
     }
     return background;
 }
@@ -505,39 +510,32 @@ int internal_jobs(char **args){
 Envia un trabajo detenido o del background al foreground, reactivando su ejecución en caso de que estuviese detenido
 */
 int internal_fg(char **args){ // fg 2 
-    if((args[1] == NULL || args[2] != NULL) ){
+    signal(SIGTSTP, ctrlz);
+    if((args[1] == NULL) || (args[2] != NULL)){ // Check the syntax
         fprintf(stderr, "Invalid Syntax\n");
     }else{
         int pos;
-        char *tokens[ARGS_SIZE];
-        sscanf(args[1], "%d", &pos);
+        char *tokens[ARGS_SIZE]; // Auxiliray array
+        sscanf(args[1], "%d", &pos); // pos == args[1]
 
-        if(pos >= n_pids || pos == 0){
+        if((pos > n_pids) || (pos == 0)){ // Pos doesn't exist or is out of limits.
             fprintf(stderr, "This job does not exist\n");
             return -1;
         }else{
             int i = 0;
-            char *aux = malloc(COMMAND_LINE_SIZE);
-            
+            char *aux = malloc(COMMAND_LINE_SIZE); //Auxiliary string 
             if(jobs_list[pos].status == 'D'){
                 kill(jobs_list[pos].pid, SIGCONT);
                 printf("[internal_fg() -> Señal 18 (SIGCONT) enviada a %d (%s)\n", jobs_list[pos].pid, jobs_list[pos].cmd);
             }
-
             jobs_list[0].pid = jobs_list[pos].pid;
             jobs_list[0].status = 'E';
-            parse_args(tokens, jobs_list[pos].cmd);
-            for(i; *tokens[i+1] != '&'; i++){
-                strcat(aux, tokens[i]);
-                strcat(aux, " ");
-            }
-            strcat(aux, tokens[i]);
-            
-            strcpy(jobs_list[0].cmd, aux);
+            parse_args(tokens, jobs_list[pos].cmd); // Hay que quitar el & de jobs_list[pos].cmd
+            strcpy(jobs_list[0].cmd, remove_and(tokens));
             jobs_list_remove(pos);
-            printf("%s\n", jobs_list[0].cmd);
+            signal(SIGTSTP, ctrlz);
 
-            while(jobs_list[0].pid != 0){ // Proceso en foreground ? wait 
+            while((jobs_list[0].pid) != 0){ // Proceso en foreground ? wait 
                 pause();
             }
         }    
@@ -548,28 +546,32 @@ int internal_fg(char **args){ // fg 2
 Envia un trabajo del foreground al background
 */
 int internal_bg(char **args){
-    if((args[1] == NULL || args[2] != NULL) ){
+    if((args[1] == NULL) || (args[2] != NULL)){
         fprintf(stderr, "Invalid Syntax\n");
     }else{
         int pos;
         char *tokens[ARGS_SIZE];
         sscanf(args[1], "%d", &pos); // casteo de string a value 
-
-        if(pos >= n_pids || pos == 0){
+        printf("Pos : %d\tn_pids: %d\n", pos, n_pids);
+        if((pos > n_pids) || (pos == 0)){
             fprintf(stderr, "This job does not exist\n");
             return -1;
         }else{
            
-            if(jobs_list[pos]. status == 'E'){
+            if(jobs_list[pos].status == 'E'){
                 fprintf(stderr, "El trabajo ya esta en segundo plano\n");
                 return -1;
             }
             jobs_list[pos].status = 'E';
-            
-            strcat(jobs_list[pos].cmd, " &");
-            
+            printf("Antes de la concat: %s \n", jobs_list[pos].cmd);
 
+            parse_args(tokens, jobs_list[pos].cmd);
+            strcpy(jobs_list[pos].cmd, remove_and(tokens));
+            strcat(jobs_list[pos].cmd, " &"); 
+
+            printf("Despues de la concat: %s \n", jobs_list[pos].cmd);
             kill(jobs_list[pos].pid, SIGCONT);
+            
             printf("PID: %d\t Status: %c\t cmd: %s\n", jobs_list[pos].pid, jobs_list[pos].status, jobs_list[pos].cmd);
         }    
     }
@@ -607,4 +609,23 @@ int advanced_syntax(char *line){
     
     strcpy(line, return_line); //Pasamos la linea modificada 
     return conversion;
+}
+
+
+/*
+    Returns a string without a final &
+*/
+char *remove_and(char **tokens){
+    int i = 0;
+    char *line = malloc(COMMAND_LINE_SIZE);
+    if(tokens[i+1]!= NULL){
+        while(tokens[i+1][0] != '&'){
+            strcat(line, tokens[i]);
+            strcat(line, " ");
+            i++;
+        }
+    }
+    strcat(line, tokens[i]);
+
+    return line;
 }
