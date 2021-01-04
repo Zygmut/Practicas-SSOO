@@ -21,6 +21,7 @@
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
+
 //const char minishell[COMMAND_LINE_SIZE] = "./my_shell";
 
 char *read_line(char *line);
@@ -37,7 +38,7 @@ int internal_bg(char **args);
 void reaper(int signum);
 void ctrlc(int signum);
 void ctrlz(int signum);
-int is_background(char **tokens);  // CAMBIO de * a **
+void is_background(char **tokens);  // CAMBIO de * a **
 int jobs_list_add(pid_t pid, char status, char *cmd);
 int jobs_list_find(pid_t pid);
 int jobs_list_remove(int pos);
@@ -45,8 +46,8 @@ int jobs_list_remove(int pos);
 int advanced_syntax(char* line);
 char *remove_and(char **tokens);
 
-static int n_pids; // Numero de procesos activos 
-
+static int n_pids, isBackground; // Numero de procesos activos, variable global para saber si el cmd contiene &
+static char *current_cmd;
 struct info_process { //objeto hilos/procesos
     pid_t pid;
     char status;
@@ -59,6 +60,7 @@ int main(){
     
     char line[COMMAND_LINE_SIZE];
     int status;
+    current_cmd = malloc(COMMAND_LINE_SIZE);
     n_pids = 0; 
     signal(SIGTSTP, ctrlz);
     signal(SIGCHLD, reaper);
@@ -83,8 +85,6 @@ int main(){
 
 
 /*
-
-
 Lo más simple es usar un símbolo como constante simbólica, por ejemplo: #define PROMPT ‘$’, 
 o un char const PROMPT =’$’. A la hora de imprimirlo será de tipo carácter, %c, y le podéis 
 añadir un espacio en blanco para separar la línea de comandos. 
@@ -99,7 +99,6 @@ Para forzar el vaciado del buffer de salida se puede utilizar la función fflush
 Imprime el prompt.
 Lee una linea de la consola (stdin) con la función fgets().
 Devuelve un puntero a la línea leída. 
-
 */
 
 char *read_line(char *line){
@@ -122,52 +121,47 @@ interno.
 
 int execute_line(char *line){  
     char *tokens[ARGS_SIZE];
-    int isBackground;
     //strcpy(jobs_list[0].cmd, line);
     pid_t pid;
+    strcpy(current_cmd, line);
     if(parse_args(tokens, line) != 0){ //Si tenemos argumentos en nuestro comando
-        
         printf("[execute_line()-> PID padre: %d (%s)]\n", getpid(), minishell);  
         if(check_internal(tokens) == 0){ //identifica si es un comando interno o externo
             signal(SIGCHLD, reaper);    
-            isBackground = is_background(tokens);
+            remove_and(tokens);
             pid = fork();
             if(pid == 0){ //proceso hijo
-                //jobs_list[0].pid = getpid();  
-                printf("[execute_line()-> PID hijo: %d (%s)]\n", jobs_list[1].pid, &jobs_list[1].cmd);
+               // printf("[execute_line()-> PID hijo: %d (%s)]\n", getpid(), current_cmd);
                 signal(SIGCHLD, SIG_DFL); //El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
                 signal(SIGINT, SIG_IGN); //El hijo ignora esta señal
                 signal(SIGTSTP, SIG_IGN);
-                printf("Primer sleep de 15 \n");
-                sleep(15);             
-                printf("segundo sleep de 10 \n");
-                sleep(10);
-                printf("Tercer sleep\n");
                 
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found\n", tokens[0]);
                     exit(0);
                 }
-                exit(0);
                 
+
             }else if(pid > 0){  //proceso padre
+                //signal(SIGTSTP, ctrlz);
+                //signal(SIGINT, ctrlc);
+
                 if(isBackground){  // CAMBIO de * a ''
                 //Se añade el proceso a la lista de procesos activos
-                    
-                    jobs_list_add(pid, 'E', line); 
-             
+                    jobs_list_add(pid, 'E', current_cmd);
+                   printf("[%d] PID: %d\tLine: %s\tStatus: %c\n", n_pids, jobs_list[n_pids].pid, jobs_list[n_pids].cmd, jobs_list[n_pids].status);
                 }else{
-                    signal(SIGTSTP, ctrlz);
+                   
                     jobs_list[0].pid = pid;
                     jobs_list[0].status = 'E'; //Proceso en ejecución
-                    strcpy(jobs_list[0].cmd, line);
-                }  
-                       
+                    strcpy(jobs_list[0].cmd, current_cmd);
+
+                    
+                } 
                 //Wait to dodge the zombie apocalipse (zombie child)
                 while ((jobs_list[0].pid != 0)){
                     pause();
                 }
-                
             }                  
         }
     }
@@ -278,8 +272,8 @@ int jobs_list_find(pid_t pid){
 /*
     Analiza si la linea de comandos tiene un & al final. En tal caso, remplazaria ese & por (null) . Devuelve 0 si no hay & al final, de lo contrario devuelve 1
 */
-int is_background(char **tokens){  // CAMBIO de * a **
-    int background = 0;
+void is_background(char **tokens){  // CAMBIO de * a **
+    isBackground = 0;
     int i = 0;
 
     while(tokens[i] != NULL){
@@ -287,10 +281,9 @@ int is_background(char **tokens){  // CAMBIO de * a **
     }
 
     if(tokens[i-1][0] == '&'){
-        background = 1;
-        //tokens[i-1] = NULL;     
+        isBackground = 1;
+        tokens[i-1] = NULL;     
     }
-    return background;
 }
 
 /*
@@ -330,10 +323,10 @@ delimitadores yuxtapuestos: “ \t\n\r”)
 
 int parse_args(char **args, char *line){
     int tokens = 0;
-    
+   
     args[tokens] = strtok(line, "#"); //Eliminamos los comentarios
     args[tokens] = strtok(args[tokens], Separadores); // Cogemos el primer argumento
-    
+
     while (args[tokens] != NULL){ 
         tokens++;
         args[tokens] = strtok(NULL, Separadores); //leer la siguiente palabra
@@ -496,7 +489,6 @@ int internal_source(char **args){
         printf("source requieres an additional parameter\n");
     }
 }
-
 /*
 Internal_jobs muestra la información completa de los diferentes procesos que haya arrancados
 */
@@ -505,7 +497,6 @@ int internal_jobs(char **args){
         printf("[%d] PID: %d\tLine: %s\tStatus: %c\n", i, jobs_list[i].pid, jobs_list[i].cmd, jobs_list[i].status);
     }
 }
-
 /*
 Envia un trabajo detenido o del background al foreground, reactivando su ejecución en caso de que estuviese detenido
 */
@@ -523,15 +514,16 @@ int internal_fg(char **args){ // fg 2
             return -1;
         }else{
             int i = 0;
-            char *aux = malloc(COMMAND_LINE_SIZE); //Auxiliary string 
             if(jobs_list[pos].status == 'D'){
                 kill(jobs_list[pos].pid, SIGCONT);
                 printf("[internal_fg() -> Señal 18 (SIGCONT) enviada a %d (%s)\n", jobs_list[pos].pid, jobs_list[pos].cmd);
             }
             jobs_list[0].pid = jobs_list[pos].pid;
             jobs_list[0].status = 'E';
+
             parse_args(tokens, jobs_list[pos].cmd); // Hay que quitar el & de jobs_list[pos].cmd
             strcpy(jobs_list[0].cmd, remove_and(tokens));
+            
             jobs_list_remove(pos);
             signal(SIGTSTP, ctrlz);
 
@@ -541,7 +533,6 @@ int internal_fg(char **args){ // fg 2
         }    
     }
 }
-
 /*
 Envia un trabajo del foreground al background
 */
@@ -610,22 +601,19 @@ int advanced_syntax(char *line){
     strcpy(line, return_line); //Pasamos la linea modificada 
     return conversion;
 }
-
-
 /*
     Returns a string without a final &
 */
-char *remove_and(char **tokens){
+char *remove_and(char **tokens){  // CAMBIO de * a **
     int i = 0;
-    char *line = malloc(COMMAND_LINE_SIZE);
-    if(tokens[i+1]!= NULL){
-        while(tokens[i+1][0] != '&'){
-            strcat(line, tokens[i]);
-            strcat(line, " ");
-            i++;
-        }
+    char *aux = malloc(COMMAND_LINE_SIZE);  // sleep 50 & 
+    is_background(tokens);
+    while(tokens[i+1] != NULL){
+        strcat(aux, tokens[i]);
+        strcat(aux, " ");
+        i++;
     }
-    strcat(line, tokens[i]);
-
-    return line;
+    strcat(aux, tokens[i]);
+        
+    return aux;
 }
