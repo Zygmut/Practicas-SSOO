@@ -158,7 +158,7 @@ void reaper(int signum){
 
     while((terminatedProcess = waitpid(-1, NULL, WNOHANG)) > 0){            // Busca todos los hijos que puedan haber terminado a la vez y los cierra | NUll == childsatus
         if (jobs_list[0].pid == terminatedProcess){
-            printf("reaper() -> proceso hijo %d (%s) finalizado por la señal %d", terminatedProcess, jobs_list[0].cmd, signum);
+            printf("reaper() -> proceso hijo %d (%s) finalizado por la señal %d\n", terminatedProcess, jobs_list[0].cmd, signum);
             jobs_list[0].pid = 0;                                           // Desbloqueamos al minishell eliminando el pid del proceso en foreground
             jobs_list[0].status = 'F';                                      // Proceso finalizado
             memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE);                 // Se borra el cmd asociado
@@ -172,14 +172,14 @@ void ctrlc (int signum){
     printf("\n");
     printf("ctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)\n", pid, jobs_list[0].pid , jobs_list[0].cmd);
     if(jobs_list[0].pid > 0){                                               // Hay proceso en foreground 
-        if(strcmp(jobs_list[0].cmd, minishell)){                            // Proceso en foreground es un minishell
-            printf("ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
+        if(strcmp(jobs_list[0].cmd, minishell) == 0){                            // Proceso en foreground es un minishell
+            printf("ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", SIGTERM);
         }else{
-            printf("ctrlc() -> Señal %d enviada a %d (%s)\n", signum, jobs_list[0].pid, jobs_list[0].cmd);
+            printf("ctrlc() -> Señal %d enviada a %d (%s)\n", SIGTERM, jobs_list[0].pid, jobs_list[0].cmd);
             kill(jobs_list[0].pid, SIGTERM);                                // Esto aborta el proceso en foreground
         }
     }else{
-        printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
+        printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", SIGTERM);
     }
     
     signal(SIGINT, ctrlc);                                                  // Hay que refrescar
