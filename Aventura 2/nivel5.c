@@ -1,3 +1,8 @@
+/******************************************************************/
+/*                  Alberto Cugat Martín                          */
+/*                  Jaume Julià Vallespir                         */
+/*                  Rubén Palmer Pérez                            */
+/******************************************************************/
 #define _POSIX_C_SOURCE 200112L
 
 #include <stdio.h>
@@ -7,7 +12,7 @@
 #include <sys/types.h>  
 #include <string.h>     
 #include <unistd.h>     
-                                                                            // Leer linea a linea el archivo   
+
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
 #define ARGS_SIZE 64
@@ -58,7 +63,6 @@ static struct info_process jobs_list[N_JOBS];                               // A
 int main(){
     
     char line[COMMAND_LINE_SIZE];
-    int status;
     current_cmd = malloc(COMMAND_LINE_SIZE);
     n_pids = 0; 
     signal(SIGTSTP, ctrlz);
@@ -161,6 +165,8 @@ int execute_line(char *line){
             }                  
         }
     }
+
+    return 0;
 }
 
 /*
@@ -184,6 +190,7 @@ void reaper(int signum){
            jobs_list_remove(pos);
         }
     }    
+    
 }
 
 /*
@@ -227,8 +234,10 @@ int jobs_list_add(pid_t pid, char status, char *cmd){
         printf("n_pids %d cmd: %s\n", n_pids, jobs_list[n_pids].cmd);
     }else{
         fprintf(stderr, "Maximum background jobs reached\n");
+        return -1;
     }
-    
+
+    return 0; 
 }
 
 /*
@@ -248,8 +257,9 @@ int jobs_list_remove(int pos){
         n_pids--;
     }else{
         fprintf(stderr, "No jobs are currently being executed.\n");
+        return -1;
     }
-    
+    return 0;
 }
 
 /*
@@ -428,7 +438,8 @@ int internal_cd(char **args){
     }else{
         setenv("PWD", cwd, 1);
     }
-    
+
+    return 0;
 }
 
 /*
@@ -455,6 +466,7 @@ int internal_export(char **args){
     }
     args[2] = strtok(NULL, "=");                                            // Valor de la variable de entorno
     setenv(args[1],args[2], 1);
+    return 0;
 }
 
 /*
@@ -474,17 +486,22 @@ int internal_source(char **args){
                 execute_line(buffer);
                 if(fflush(file_p)!= 0){
                     fprintf(stderr, "Error while flushing [%s]\n", args[1]);
+                    return -1;
                 }
             }
             if(fclose(file_p) != 0){
                 fprintf(stderr, "Error while closing file [%s]\n", args[1]);
+                return -1;
             }
         }else{
             fprintf(stderr, "%s: No such file or directory\n", args[1]); 
+            return -1;
         }  
     }else{                                                                  // Syntax incorrecta
         printf("source requieres an additional parameter\n");
     }
+
+    return 0;
 }
 /*
     Internal_jobs muestra la información completa de los diferentes procesos que haya arrancados
@@ -493,6 +510,8 @@ int internal_jobs(char **args){
     for(int i = 1; i<=n_pids; i++){
         printf("[%d] PID: %d\tStatus: %c\tLine: %s\n", i, jobs_list[i].pid, jobs_list[i].status, jobs_list[i].cmd);
     }
+
+    return 0;
 }
 /*
     Envia un trabajo detenido o del background al foreground, reactivando su ejecución en caso de que estuviese detenido
@@ -501,6 +520,7 @@ int internal_fg(char **args){
     signal(SIGTSTP, ctrlz);
     if((args[1] == NULL) || (args[2] != NULL)){                             // Revisar la syntax
         fprintf(stderr, "Invalid Syntax\n");
+        return -1;
     }else{
         int pos;
         char *tokens[ARGS_SIZE];                                            // Array auxiliar
@@ -510,7 +530,6 @@ int internal_fg(char **args){
             fprintf(stderr, "This job does not exist\n");
             return -1;
         }else{
-            int i = 0;
             if(jobs_list[pos].status == 'D'){
                 kill(jobs_list[pos].pid, SIGCONT);
                 printf("[internal_fg() -> Señal 18 (SIGCONT) enviada a %d (%s)\n", jobs_list[pos].pid, jobs_list[pos].cmd);
@@ -529,6 +548,8 @@ int internal_fg(char **args){
             }
         }    
     }
+
+    return 0;
 }
 /*
     Envia un trabajo del foreground al background
@@ -536,6 +557,7 @@ int internal_fg(char **args){
 int internal_bg(char **args){
     if((args[1] == NULL) || (args[2] != NULL)){
         fprintf(stderr, "Invalid Syntax\n");
+        return -1;
     }else{
         int pos;
         char *tokens[ARGS_SIZE];
@@ -563,6 +585,7 @@ int internal_bg(char **args){
             printf("PID: %d\t Status: %c\t cmd: %s\n", jobs_list[pos].pid, jobs_list[pos].status, jobs_list[pos].cmd);
         }    
     }
+    return 0;
 }
 
 

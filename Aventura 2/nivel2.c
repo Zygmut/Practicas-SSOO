@@ -1,3 +1,8 @@
+/******************************************************************/
+/*                  Alberto Cugat Martín                          */
+/*                  Jaume Julià Vallespir                         */
+/*                  Rubén Palmer Pérez                            */
+/******************************************************************/
 #define _POSIX_C_SOURCE 200112L
 
 #include <stdio.h>
@@ -74,7 +79,10 @@ int execute_line(char *line){
     
     if(parse_args(tokens, line) != 0){                                      // Si tenemos argumentos en nuestro comando
         check_internal(tokens);
+    }else{
+        return -1;
     }
+    return 0;
 }
 
 /*
@@ -200,7 +208,7 @@ int internal_cd(char **args){
     }else{
         setenv("PWD", cwd, 1);
     }
-    
+    return 0;
 }
 
 /*
@@ -227,6 +235,7 @@ int internal_export(char **args){
     }
     args[2] = strtok(NULL, "=");                                            // Valor de la variable de entorno
     setenv(args[1],args[2], 1);
+    return 0;
 }
 
 /*
@@ -234,6 +243,7 @@ int internal_export(char **args){
 */
 int internal_source(char **args){
     printf("This is internal_source\n  import functions into other bash scripts or to run scripts\n");
+    return 0;
 }
 
 /*
@@ -241,6 +251,7 @@ int internal_source(char **args){
 */
 int internal_jobs(char **args){
     printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
+    return 0;
 
 }
 
@@ -249,6 +260,7 @@ int internal_jobs(char **args){
 */
 int internal_fg(char **args){
     printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
+    return 0;
 
 }
 
@@ -256,7 +268,8 @@ int internal_fg(char **args){
     En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
 */
 int internal_bg(char **args){
-        printf("This is internal_bg\n t resumes suspended jobs in the background\n");
+    printf("This is internal_bg\n t resumes suspended jobs in the background\n");
+    return 0;
 }
 
 /*

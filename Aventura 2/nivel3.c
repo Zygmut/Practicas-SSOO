@@ -1,3 +1,8 @@
+/******************************************************************/
+/*                  Alberto Cugat Martín                          */
+/*                  Jaume Julià Vallespir                         */
+/*                  Rubén Palmer Pérez                            */
+/******************************************************************/
 #define _POSIX_C_SOURCE 200112L
 
 #include <stdio.h>
@@ -35,7 +40,7 @@ int advanced_syntax(char* line);
 int main(){
     
     char line[COMMAND_LINE_SIZE];
-    int status;
+   
     while(read_line(line)){
         execute_line(line);
     }
@@ -90,6 +95,7 @@ int execute_line(char *line){
                 printf("EQUISDE\n");
                 if(execvp(tokens[0], tokens) == -1){
                     fprintf(stderr, "Command %s not found", tokens[0]);
+                    return -1;
                 }
                 exit(0);
             }else if(pid > 0){                                              // Proceso padre
@@ -99,6 +105,7 @@ int execute_line(char *line){
             }
         }
     }
+    return 0;
 }
 
 /*
@@ -224,6 +231,7 @@ int internal_cd(char **args){
         setenv("PWD", cwd, 1);
     }
     
+    return 0;    
 }
 
 /*
@@ -250,6 +258,7 @@ int internal_export(char **args){
     }
     args[2] = strtok(NULL, "=");                                            // Valor de la variable de entorno
     setenv(args[1],args[2], 1);
+    return 0;
 }
 
 /*
@@ -261,8 +270,6 @@ int internal_export(char **args){
     Se cierra el fichero de comandos con ​fclose​()
 */
 int internal_source(char **args){
-    
-
     if(args[1] != NULL){
         FILE *file_p;  
 
@@ -275,17 +282,21 @@ int internal_source(char **args){
                 execute_line(buffer);
                 if(fflush(file_p)!= 0){
                     fprintf(stderr, "Error while flushing [%s]", args[1]);
+                    return -1;
                 }
             }
             if(fclose(file_p) != 0){
                 fprintf(stderr, "Error while closing file [%s]", args[1]);
+                return -1;
             }
         }else{
             fprintf(stderr, "%s: No such file or directory\n", args[1]); 
+            return -1;
         }  
     }else{                                                                  // Syntax incorrecta
         printf("source requieres an additional parameter");
     }
+    return 0;
 }
 
 /*
@@ -293,6 +304,7 @@ int internal_source(char **args){
 */
 int internal_jobs(char **args){
     printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
+    return 0;
 }
 
 /*
@@ -300,6 +312,7 @@ int internal_jobs(char **args){
 */
 int internal_fg(char **args){
     printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
+    return 0;
 }
 
 /*
@@ -307,6 +320,7 @@ int internal_fg(char **args){
 */
 int internal_bg(char **args){
     printf("This is internal_bg\n t resumes suspended jobs in the background\n");
+    return 0;
 }
 
 /*

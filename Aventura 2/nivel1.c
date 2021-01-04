@@ -1,3 +1,10 @@
+/******************************************************************/
+/*                  Alberto Cugat Martín                          */
+/*                  Jaume Julià Vallespir                         */
+/*                  Rubén Palmer Pérez                            */
+/******************************************************************/
+#define _POSIX_C_SOURCE 200112L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,9 +75,10 @@ int execute_line(char *line){
     
     if(parse_args(tokens, line) != 0){                                      // Si tenemos argumentos en nuestro comando
         check_internal(tokens);
+    }else{
+        return -1;
     }
-
-    
+    return 0;
 }
 
 /*
@@ -138,8 +146,6 @@ int check_internal(char **args){
     }
     return internal;
     
-
-    
 }
 
 /*
@@ -147,6 +153,7 @@ int check_internal(char **args){
 */
 int internal_cd(char **args){
     printf("This is internal_cd\n Change the current working directory\n");
+    return 0;
 }
 
 /*
@@ -154,6 +161,7 @@ int internal_cd(char **args){
 */
 int internal_export(char **args){
     printf("This is internal_export\n marks an environment variable to be exported with any newly forked child processes and thus it allows a child process to inherit all marked variables\n");
+    return 0;
 }
 
 /*
@@ -161,6 +169,7 @@ int internal_export(char **args){
 */
 int internal_source(char **args){
     printf("This is internal_source\n  import functions into other bash scripts or to run scripts\n");
+    return 0;
 }
 
 /*
@@ -168,6 +177,7 @@ int internal_source(char **args){
 */
 int internal_jobs(char **args){
     printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
+    return 0;
 }
 
 /*
@@ -175,6 +185,7 @@ int internal_jobs(char **args){
 */
 int internal_fg(char **args){
     printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
+    return 0;
 }
 
 /*
@@ -182,4 +193,5 @@ int internal_fg(char **args){
 */
 int internal_bg(char **args){
     printf("This is internal_bg\n t resumes suspended jobs in the background\n");
+    return 0;
 }
