@@ -149,7 +149,7 @@ int execute_line(char *line){
                 if(isBackground){  // CAMBIO de * a ''
                 //Se añade el proceso a la lista de procesos activos
                     jobs_list_add(pid, 'E', current_cmd);
-                   printf("[%d] PID: %d\tLine: %s\tStatus: %c\n", n_pids, jobs_list[n_pids].pid, jobs_list[n_pids].cmd, jobs_list[n_pids].status);
+                   printf("[%d] PID: %d\tStatus: %c\tLine: %s\n", n_pids, jobs_list[n_pids].pid, jobs_list[n_pids].status, jobs_list[n_pids].cmd);
                 }else{
                    
                     jobs_list[0].pid = pid;
@@ -239,13 +239,17 @@ int jobs_list_add(pid_t pid, char status, char *cmd){
     Removes a job to the job list
 */
 int jobs_list_remove(int pos){
-    if(n_pids > -1){
+    if(n_pids > 0){
         if(pos == n_pids){
             jobs_list[pos].pid = 0;
             jobs_list[pos].status = 'F';
             memset(jobs_list[pos].cmd, 0, COMMAND_LINE_SIZE); 
         }else{
-            jobs_list[pos] = jobs_list[n_pids];
+            printf("Pid del proceso que ha finalizado: %d \tPid del proceso que lo sustituye: %d\n",jobs_list[pos].pid, jobs_list[n_pids].pid);
+            jobs_list[pos].pid = jobs_list[n_pids].pid;
+            printf("Pid del proceso ya sustituido: %d\n",jobs_list[pos].pid);
+            jobs_list[pos].status = jobs_list[n_pids].status;
+            strcpy(jobs_list[pos].cmd, jobs_list[n_pids].cmd);
         }
         n_pids--;
     }else{
@@ -258,10 +262,10 @@ int jobs_list_remove(int pos){
     Finds a job to the job list
 */
 int jobs_list_find(pid_t pid){
-    int pos;
+    int pos = 0;
     int found = 0;
-    for(int i = 0; (i<= n_pids) && (found == 0); i++){
-        if(jobs_list[i].pid != pid){
+    for(int i = 1; (i<= n_pids) && (!found); i++){
+        if(jobs_list[i].pid == pid){
             found = 1;
             pos = i;
         }
@@ -494,7 +498,7 @@ Internal_jobs muestra la información completa de los diferentes procesos que ha
 */
 int internal_jobs(char **args){
     for(int i = 1; i<=n_pids; i++){
-        printf("[%d] PID: %d\tLine: %s\tStatus: %c\n", i, jobs_list[i].pid, jobs_list[i].cmd, jobs_list[i].status);
+        printf("[%d] PID: %d\tStatus: %c\tLine: %s\n", i, jobs_list[i].pid, jobs_list[i].status, jobs_list[i].cmd);
     }
 }
 /*
