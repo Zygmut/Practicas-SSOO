@@ -121,6 +121,10 @@ char *read_line(char *line){
 int execute_line(char *line){  
     char *tokens[ARGS_SIZE];
     pid_t pid;
+     int len = strlen(line);
+    if (len > 0 && line[len-1] == '\n'){
+        line[len-1] = '\0';
+    }
     strcpy(current_cmd, line);
 
     if(parse_args(tokens, line) != 0){                                      // Si tenemos argumentos en nuestro comando
@@ -169,7 +173,7 @@ int execute_line(char *line){
     evitar el estado zombie.
 */
 void reaper(int signum){
-    signal(SIGCHLD, reaper);                                                // Para refrescar la acción apropiada (C es una mierda)
+    signal(SIGCHLD, reaper);                                                // Para refrescar la acción apropiada
     pid_t terminatedProcess;
 
     while((terminatedProcess = waitpid(-1, NULL, WNOHANG)) > 0){            // Busca todos los hijos que puedan haber terminado a la vez y los cierra | NUll == childsatus
@@ -191,7 +195,7 @@ void reaper(int signum){
     Controlador de la señal Ctrl + Z
 */
 void ctrlz(int signum){
-    signal(SIGTSTP, ctrlz);                                                 // Hay que refrescar la señal ya que C no es muy inteligente que digamos
+    signal(SIGTSTP, ctrlz);                                                 // Hay que refrescar la señal
     pid_t pid = getpid();
     printf("\n");
     printf("[ctrlz() -> Soy el proceso con pid %d, el proceso en foreground es %d (%s)]\n", pid, jobs_list[0].pid, jobs_list[0].cmd);
@@ -444,17 +448,18 @@ int internal_cd(char **args){
 */
 int internal_export(char **args){
     if(args[2] != NULL){                                                   // Revisar syntax 
-        fprintf(stderr, "Invalid syntax [NAME=VALUE]\n")
-        return -1
-    
+        fprintf(stderr, "Invalid syntax [NAME=VALUE]\n");
+        return -1;
+    }
     args[1] = strtok(args[1], "=");                                        // Variable de entorno
 
     if(!getenv(args[1])){
-        fprintf(stderr, "Not a valid enviroment variable\n")
-        return -1
-    
+        fprintf(stderr, "Not a valid enviroment variable\n");
+        return -1;
+    }
     args[2] = strtok(NULL, "=");                                           // Valor de la variable de entorno
     setenv(args[1],args[2], 1);
+
 }
 
 /*
@@ -618,6 +623,7 @@ int advanced_syntax(char *line){
     strcpy(line, return_line);                                              // Pasamos la linea modificada 
     return conversion;                      
 }
+
 /*
     Devuelve el string sin el & final
 */

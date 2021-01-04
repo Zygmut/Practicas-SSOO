@@ -7,7 +7,7 @@
 #include <sys/types.h>  
 #include <string.h>     
 #include <unistd.h>     
-
+                                                                            // Leer linea a linea el archivo   
 #define PROMPT "$"
 #define COMMAND_LINE_SIZE 1024
 #define ARGS_SIZE 64
@@ -17,10 +17,11 @@
 #define AZUL "\x1b[34m"
 #define BLANCO "\x1b[37m"
 
-#define N_JOBS 64 
+#define N_JOBS 64                                                           // Tamaño del array de trabajos/hijos/procesos
 
 const char Separadores[5] = " \t\n\r";
 const char advanced_cd[4] = "\\\"\'";
+
 
 char *read_line(char *line);
 int execute_line(char *line);
@@ -35,9 +36,17 @@ int internal_fg(char **args);
 int internal_bg(char **args);
 void reaper(int signum);
 void ctrlc(int signum);
+void ctrlz(int signum);
+void is_background(char **tokens);
+int jobs_list_add(pid_t pid, char status, char *cmd);
+int jobs_list_find(pid_t pid);
+int jobs_list_remove(int pos);
 
 int advanced_syntax(char* line);
-                                                                            
+char *remove_and(char **tokens);
+
+static int n_pids, isBackground;                                            // Numero de procesos activos, variable global para saber si el cmd contiene &
+static char *current_cmd;
 struct info_process {                                                       // Objeto hilos/procesos
     pid_t pid;
     char status;
@@ -50,12 +59,14 @@ int main(){
     
     char line[COMMAND_LINE_SIZE];
     int status;
+    current_cmd = malloc(COMMAND_LINE_SIZE);
+    n_pids = 0; 
+    signal(SIGTSTP, ctrlz);
     signal(SIGCHLD, reaper);
     signal(SIGINT, ctrlc);
     struct info_process *jobs_list = malloc(N_JOBS*sizeof(struct info_process));
     for (int i = 0; i < N_JOBS ; i++){
         struct info_process newJob = {.pid = 0, .status = 'N'};
-
         jobs_list[i] = newJob;
         
     }
@@ -105,38 +116,48 @@ char *read_line(char *line){
     interno. 
 */
 
-int execute_line(char *line){
+int execute_line(char *line){  
     char *tokens[ARGS_SIZE];
+    pid_t pid;
     int len = strlen(line);
     if (len > 0 && line[len-1] == '\n'){
         line[len-1] = '\0';
     }
-
-    strcpy(jobs_list[0].cmd, line);
-    pid_t pid;
+    
+    strcpy(current_cmd, line);
     if(parse_args(tokens, line) != 0){                                      // Si tenemos argumentos en nuestro comando
-        printf("execute_line()-> PID padre: %d (%s)\n", getpid(), minishell);  
+        printf("[execute_line()-> PID padre: %d (%s)]\n", getpid(), minishell);  
         if(check_internal(tokens) == 0){                                    // Identifica si es un comando interno o externo
-            signal(SIGCHLD, reaper);           
+            signal(SIGCHLD, reaper);    
+            remove_and(tokens);
             pid = fork();
-            jobs_list[0].status = 'E';                                      // Proceso en ejecución
-            if(pid == 0){ //proceso hijo
-                jobs_list[0].pid = getpid();
-                printf("execute_line()-> PID hijo: %d (%s)\n", jobs_list[0].pid, jobs_list[0].cmd);
+            if(pid == 0){                                                   // Proceso hijo
                 signal(SIGCHLD, SIG_DFL);                                   // El hijo no tiene que manejar el reaper, asi que delega la responsabilidad
                 signal(SIGINT, SIG_IGN);                                    // El hijo ignora esta señal
+                signal(SIGTSTP, SIG_IGN);
+                
                 if(execvp(tokens[0], tokens) == -1){
-                    fprintf(stderr, "Command %s not found", tokens[0]);
+                    fprintf(stderr, "Command %s not found\n", tokens[0]);
                     exit(0);
                 }
-                exit(0);
                 
+
             }else if(pid > 0){                                              // Proceso padre
-                jobs_list[0].pid = pid;
+
+                if(isBackground){                        
+                    jobs_list_add(pid, 'E', current_cmd);                   // Se añade el proceso a la lista de procesos activos
+                    printf("[%d] PID: %d\tStatus: %c\tLine: %s\n", n_pids, jobs_list[n_pids].pid, jobs_list[n_pids].status, jobs_list[n_pids].cmd);
+                }else{
+                   
+                    jobs_list[0].pid = pid;
+                    jobs_list[0].status = 'E';                              // Proceso en ejecución
+                    strcpy(jobs_list[0].cmd, current_cmd);
+
+                } 
+                
                 while ((jobs_list[0].pid != 0)){
                     pause();
                 }
-                
             }                  
         }
     }
@@ -152,33 +173,140 @@ void reaper(int signum){
 
     while((terminatedProcess = waitpid(-1, NULL, WNOHANG)) > 0){            // Busca todos los hijos que puedan haber terminado a la vez y los cierra | NUll == childsatus
         if (jobs_list[0].pid == terminatedProcess){
-            printf("reaper() -> proceso hijo %d (%s) finalizado por la señal %d", terminatedProcess, jobs_list[0].cmd, signum);
+            printf("[reaper() -> proceso hijo %d (%s) finalizado por la señal %d]\n", terminatedProcess, jobs_list[0].cmd, signum);
             jobs_list[0].pid = 0;                                           // Desbloqueamos al minishell eliminando el pid del proceso en foreground
             jobs_list[0].status = 'F';                                      // Proceso finalizado
             memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE);                 // Se borra el cmd asociado
+        }else{                                                              // Background
+           int pos = jobs_list_find(terminatedProcess); 
+           fprintf(stderr, "Posicion del job en la lista: %d\n", pos);
+           fprintf(stderr, "[reaper() -> proceso hijo %d en background (%s) finalizado con exit code %d]\n", terminatedProcess, jobs_list[pos].cmd, signum);
+           jobs_list_remove(pos);
         }
-        printf("Ha terminado el proceso hijo con pid %d \n", terminatedProcess);
     }    
 }
 
+/*
+    Controlador de la señal Ctrl + Z
+*/
+void ctrlz(int signum){
+    signal(SIGTSTP, ctrlz);                                                 // Hay que refrescar la señal 
+    pid_t pid = getpid();
+    printf("\n");
+    printf("[ctrlz() -> Soy el proceso con pid %d, el proceso en foreground es %d (%s)]\n", pid, jobs_list[0].pid, jobs_list[0].cmd);
+    if(jobs_list[0].pid > 0){
+        if(strcmp(jobs_list[0].cmd, minishell) == 0){
+            printf("[ctrlz() -> Señal %d no enviada debido a que el proceso en foreground es un minishell]\n", signum);
+
+        }else{
+            printf("[ctrlz() -> Señal %d enviada a %s]\n", signum, jobs_list[0].cmd);
+            kill(jobs_list[0].pid, SIGSTOP);
+            jobs_list_add(jobs_list[0].pid, 'D', jobs_list[0].cmd);
+                                                                            // No podemos hacer un jobs_list_remove ya que en tal caso cogeria el job que hemos puesto ahora mismo
+                                                                            // Tal vez podria ser posible eliminarlo primero y luego añadirlo y al no estar seguro, lo hare asi
+
+            jobs_list[0].pid = 0;
+            jobs_list[0].status = 'F';
+            memset(jobs_list[0].cmd, 0, COMMAND_LINE_SIZE); 
+        }
+    }else{
+        printf("[ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground]\n", signum);
+    }
+    signal(SIGTSTP, ctrlz);
+}
+
+/*
+    Añade un trabajo al final de la lista
+*/
+int jobs_list_add(pid_t pid, char status, char *cmd){
+    if(n_pids < N_JOBS){
+        n_pids++;
+        jobs_list[n_pids].pid = pid;
+        jobs_list[n_pids].status = status;
+        strcpy(jobs_list[n_pids].cmd, cmd);  
+        printf("n_pids %d cmd: %s\n", n_pids, jobs_list[n_pids].cmd);
+    }else{
+        fprintf(stderr, "Maximum background jobs reached\n");
+    }
+    
+}
+
+/*
+    Elimina el trabajo de la lista en la posicion 'pos'
+*/
+int jobs_list_remove(int pos){
+    if(n_pids > 0){
+        if(pos == n_pids){
+            jobs_list[pos].pid = 0;
+            jobs_list[pos].status = 'F';
+            memset(jobs_list[pos].cmd, 0, COMMAND_LINE_SIZE); 
+        }else{
+            jobs_list[pos].pid = jobs_list[n_pids].pid;
+            jobs_list[pos].status = jobs_list[n_pids].status;
+            strcpy(jobs_list[pos].cmd, jobs_list[n_pids].cmd);
+        }
+        n_pids--;
+    }else{
+        fprintf(stderr, "No jobs are currently being executed.\n");
+    }
+    
+}
+
+/*
+    Encuentra un trabajo dentro de la lista según el pid
+*/
+int jobs_list_find(pid_t pid){
+    int pos = 0;
+    int found = 0;
+    for(int i = 1; (i<= n_pids) && (!found); i++){
+        if(jobs_list[i].pid == pid){
+            found = 1;
+            pos = i;
+        }
+    }
+    return pos;
+}
+
+/*
+    Analiza si la linea de comandos tiene un & al final. En tal caso, remplazaria ese & por (null) . Devuelve 0 si no hay & al final, de lo contrario devuelve 1
+*/
+void is_background(char **tokens){ 
+    isBackground = 0;
+    int i = 0;
+
+    while(tokens[i] != NULL){
+        i++;
+    }
+
+    if(tokens[i-1][0] == '&'){
+        isBackground = 1;
+        tokens[i-1] = NULL;     
+    }
+}
+
+/*
+    Controlador de la señal Ctrl + C
+*/
 void ctrlc (int signum){
     pid_t pid = getpid();
     printf("\n");
-    printf("ctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)\n", pid, jobs_list[0].pid , jobs_list[0].cmd);
+    printf("[ctrlc() -> Soy el proceso con PID %d, el proceso en foreground es %d (%s)]\n", pid, jobs_list[0].pid , jobs_list[0].cmd);
     if(jobs_list[0].pid > 0){                                               // Hay proceso en foreground 
-        if(strcmp(jobs_list[0].cmd, minishell)){                            // Proceso en foreground es un minishell
-            printf("ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell\n", signum);
+        if(strcmp(jobs_list[0].cmd, minishell) == 0){                       // Proceso en foreground es un minishell
+            printf("[ctrlc() -> Señal %d no enviada debido a que el proceso en foreground es un minishell]\n", signum);
+
         }else{
-            printf("ctrlc() -> Señal %d enviada a %d (%s)\n", signum, jobs_list[0].pid, jobs_list[0].cmd);
+            printf("[ctrlc() -> Señal %d enviada a %d (%s)]\n", signum, jobs_list[0].pid, jobs_list[0].cmd);
             kill(jobs_list[0].pid, SIGTERM);                                // Esto aborta el proceso en foreground
         }
     }else{
-        printf("ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground\n", signum );
+        printf("[ctrlc() -> Señal %d no enviada debido a que no hay proceso en foreground]\n", signum );
     }
     
 
-    signal(SIGINT, ctrlc);                                                  // Hay que refrescar
+    signal(SIGINT, ctrlc); 
 }
+
 /*
     Trocea la línea obtenida en tokens, mediante la función strtok(), y obtiene el vector de 
     los diferentes tokens, args[]. No se han de tener en cuenta los comentarios (precedidos por #). 
@@ -186,22 +314,20 @@ void ctrlc (int signum){
     En este nivel, muestra por pantalla el número de token y su valor para comprobar su correcto 
     funcionamiento  (en fases posteriores eliminarlo).
     Devuelve el número de tokens (sin contar NULL).
-    
+
     Consideraremos los siguientes separadores: \t \n \r y espacio en blanco (todos en una misma cadena de
     delimitadores yuxtapuestos: “ \t\n\r”)
 */
 
 int parse_args(char **args, char *line){
     int tokens = 0;
-    
+   
     args[tokens] = strtok(line, "#");                                       // Eliminamos los comentarios
     args[tokens] = strtok(args[tokens], Separadores);                       // Cogemos el primer argumento
-    
-    printf("Token %d: %s\n", tokens, args[tokens]);
+
     while (args[tokens] != NULL){ 
         tokens++;
         args[tokens] = strtok(NULL, Separadores);                           // Leer la siguiente palabra
-        printf("Token %d: %s\n", tokens, args[tokens]); 
     }
         args[tokens]=NULL;
         return tokens;
@@ -239,7 +365,7 @@ int check_internal(char **args){
 
     }else if (strcmp(args[0], "exit") == 0){
         exit(0);        
-    }else{                                                                  // No hemos encontrado ningun comando interno
+    }else{                                                                  //No hemos encontrado ningun comando interno
         internal = 0;
     }
 
@@ -265,13 +391,13 @@ int internal_cd(char **args){
     char *pdir;
     pdir = malloc(COMMAND_LINE_SIZE);
     if(!pdir){
-        fprintf(stderr, "Not enough space");
+        fprintf(stderr, "Not enough space\n");
         return -1;
     }
     
-    if(args[1] != NULL){                                                    // Tenemos un segundo argumento ?
+    if(args[1] != NULL){                                                    // Tenemos un segundo argumento?
 
-        for(int i = 1; args[i]!=NULL; i++){                                 // Crear la linea con todos los argumentos
+        for(int i = 1; args[i]!=NULL; i++){                                 // Creamos una linea con todos los argumentos
             strcat(pdir, args[i]);
             if(args[i+1]!=NULL){
                 strcat(pdir, " ");
@@ -279,10 +405,11 @@ int internal_cd(char **args){
 
         }
 
-        advanced_syntax(pdir);                                              // Remove advanced_cd values
+        advanced_syntax(pdir);                                              // Eliminamos los valores de advanced_cd
        
         if(chdir(pdir) < 0){
             perror("chdir() Error: ");
+             
             strcpy(pdir, "\0");                                             // Preparacion para el siguiente pdir
             free(pdir);
             return -1;
@@ -294,7 +421,7 @@ int internal_cd(char **args){
         perror("chdir() Error: ");
     } 
 
-                                                                            // Actualiza PWD
+                                                                            // Actualizamos PWD
     char cwd[COMMAND_LINE_SIZE];
     if(getcwd(cwd, sizeof(cwd)) == NULL){
         perror("getcwd() Error: ");
@@ -311,12 +438,12 @@ int internal_cd(char **args){
     errores ​stderr​.En este nivel, muestra por pantalla mediante la función ​getenv​()
     el ​valor inicial​ dela variable (en niveles posteriores eliminarlo).
     Utiliza la función ​setenv​() para asignar el nuevo valor.
-    
+
     En este nivel, muestra por pantalla el ​nuevo valor​ mediante la función ​getenv​()
     para comprobar su funcionamiento (en niveles posteriores eliminarlo). 
 */
 int internal_export(char **args){
-    if(args[2] != NULL){                                                    // Revisa syntax
+    if(args[2] != NULL){                                                    // Revisar syntax
         fprintf(stderr, "Invalid syntax [NAME=VALUE]\n");
         return -1;
     }
@@ -337,8 +464,8 @@ int internal_source(char **args){
 
     if(args[1] != NULL){
         FILE *file_p;  
-        
-        file_p = fopen(args[1], "r");                                       // Abrir archivos args[1] en solo lectura
+
+        file_p = fopen(args[1], "r");                                       // Abrir el archivo args[1] en solo lectura
         if(file_p != NULL){
                                                                             // Leer linea a linea el archivo
 
@@ -346,40 +473,98 @@ int internal_source(char **args){
             while(fgets(buffer, COMMAND_LINE_SIZE,file_p)!= NULL){          // Existe una linea 
                 execute_line(buffer);
                 if(fflush(file_p)!= 0){
-                    fprintf(stderr, "Error while flushing [%s]", args[1]);
+                    fprintf(stderr, "Error while flushing [%s]\n", args[1]);
                 }
             }
             if(fclose(file_p) != 0){
-                fprintf(stderr, "Error while closing file [%s]", args[1]);
+                fprintf(stderr, "Error while closing file [%s]\n", args[1]);
             }
         }else{
             fprintf(stderr, "%s: No such file or directory\n", args[1]); 
         }  
     }else{                                                                  // Syntax incorrecta
-        printf("source requieres an additional parameter");
+        printf("source requieres an additional parameter\n");
+    }
+}
+/*
+    Internal_jobs muestra la información completa de los diferentes procesos que haya arrancados
+*/
+int internal_jobs(char **args){
+    for(int i = 1; i<=n_pids; i++){
+        printf("[%d] PID: %d\tStatus: %c\tLine: %s\n", i, jobs_list[i].pid, jobs_list[i].status, jobs_list[i].cmd);
+    }
+}
+/*
+    Envia un trabajo detenido o del background al foreground, reactivando su ejecución en caso de que estuviese detenido
+*/
+int internal_fg(char **args){ 
+    signal(SIGTSTP, ctrlz);
+    if((args[1] == NULL) || (args[2] != NULL)){                             // Revisar la syntax
+        fprintf(stderr, "Invalid Syntax\n");
+    }else{
+        int pos;
+        char *tokens[ARGS_SIZE];                                            // Array auxiliar
+        sscanf(args[1], "%d", &pos);                                        // pos == args[1]
+
+        if((pos > n_pids) || (pos == 0)){                                   // Pos no existe o esta fuera de limites 
+            fprintf(stderr, "This job does not exist\n");
+            return -1;
+        }else{
+            int i = 0;
+            if(jobs_list[pos].status == 'D'){
+                kill(jobs_list[pos].pid, SIGCONT);
+                printf("[internal_fg() -> Señal 18 (SIGCONT) enviada a %d (%s)\n", jobs_list[pos].pid, jobs_list[pos].cmd);
+            }
+            jobs_list[0].pid = jobs_list[pos].pid;
+            jobs_list[0].status = 'E';
+
+            parse_args(tokens, jobs_list[pos].cmd);                         // Hay que quitar el & de jobs_list[pos].cmd
+            strcpy(jobs_list[0].cmd, remove_and(tokens));
+            
+            jobs_list_remove(pos);
+            signal(SIGTSTP, ctrlz);
+
+            while((jobs_list[0].pid) != 0){                                 // Proceso en foreground ? wait 
+                pause();
+            }
+        }    
+    }
+}
+/*
+    Envia un trabajo del foreground al background
+*/
+int internal_bg(char **args){
+    if((args[1] == NULL) || (args[2] != NULL)){
+        fprintf(stderr, "Invalid Syntax\n");
+    }else{
+        int pos;
+        char *tokens[ARGS_SIZE];
+        sscanf(args[1], "%d", &pos);                                        // Casteo de string a value 
+        printf("Pos : %d\tn_pids: %d\n", pos, n_pids);
+        if((pos > n_pids) || (pos == 0)){
+            fprintf(stderr, "This job does not exist\n");
+            return -1;
+        }else{
+           
+            if(jobs_list[pos].status == 'E'){
+                fprintf(stderr, "El trabajo ya esta en segundo plano\n");
+                return -1;
+            }
+            jobs_list[pos].status = 'E';
+            printf("Antes de la concat: %s \n", jobs_list[pos].cmd);
+
+            parse_args(tokens, jobs_list[pos].cmd);
+            strcpy(jobs_list[pos].cmd, remove_and(tokens));
+            strcat(jobs_list[pos].cmd, " &"); 
+
+            printf("Despues de la concat: %s \n", jobs_list[pos].cmd);
+            kill(jobs_list[pos].pid, SIGCONT);
+            
+            printf("PID: %d\t Status: %c\t cmd: %s\n", jobs_list[pos].pid, jobs_list[pos].status, jobs_list[pos].cmd);
+        }    
     }
 }
 
-/*
-    En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla)
-*/
-int internal_jobs(char **args){
-    printf("This is internal_jobs\n The jobs command in Linux allows the user to directly interact with processes in the current shell.\n");
-}
-
-/*
-    En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
-*/
-int internal_fg(char **args){
-    printf("This is internal_fg\n continues a stopped job by running it in the foreground\n");
-}
-
-/*
-    En este nivel, imprime una explicación de que hará esta función (en fases posteriores eliminarla).
-*/
-int internal_bg(char **args){
-    printf("This is internal_bg\n t resumes suspended jobs in the background\n");
-}
 
 /*
     USER METHODS
@@ -412,4 +597,20 @@ int advanced_syntax(char *line){
     
     strcpy(line, return_line);                                              // Pasamos la linea modificada 
     return conversion;
+}
+/*
+    Devuelve el string sin el & final
+*/
+char *remove_and(char **tokens){  
+    int i = 0;
+    char *aux = malloc(COMMAND_LINE_SIZE);  
+    is_background(tokens);
+    while(tokens[i+1] != NULL){
+        strcat(aux, tokens[i]);
+        strcat(aux, " ");
+        i++;
+    }
+    strcat(aux, tokens[i]);
+        
+    return aux;
 }
