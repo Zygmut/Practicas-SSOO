@@ -10,7 +10,7 @@ Rubén Palmer Pérez
 #include <pthread.h>
 
 #define NUM_THREADS 10
-#define ITERATIONS 5
+#define ITERATIONS 1000000
 
 //ricos colorines Bacanos
 #define BLANCO  "\033[0;37m"
@@ -122,15 +122,15 @@ void *worker(void *ptr){
     for (int i = 0 ; i < ITERATIONS; i++){
         //zona crítica//
         pthread_mutex_lock(&mutex);
-        printf(ROJO"Soy el hilo %ld ejecutando un pop\n", pthread_self());
+        //printf(ROJO"Soy el hilo %ld ejecutando un pop\n", pthread_self());
         void *data = my_stack_pop(pila);
         pthread_mutex_unlock(&mutex);
         //Fin zona crítica//
         *((int *)data) = *((int *)data) + 1;
-        sleep(0.2);
+        //sleep(0.2);
         //zona crítica//
         pthread_mutex_lock(&mutex);
-        printf(CIAN"Soy el hilo %ld ejecutando un push\n", pthread_self());
+        //printf(CIAN"Soy el hilo %ld ejecutando un push\n", pthread_self());
         my_stack_push(pila, data);
         pthread_mutex_unlock(&mutex);
         //Fin zona crítica//

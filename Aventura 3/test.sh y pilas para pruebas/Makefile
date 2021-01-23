@@ -7,10 +7,10 @@ C=gcc
 CFLAGS=-c -g -Wall -std=c99
 LDFLAGS=-pthread
 
-SOURCES=av3.c #my_lib.c #reader.c 
+SOURCES=av3.c reader.c #my_lib.c #
 LIBRARIES=
 INCLUDES=
-PROGRAMS= av3 #reader
+PROGRAMS= av3 reader
 OBJS=$(SOURCES:.c=.o)
 
 all : $(OBJS) $(PROGRAMS)
