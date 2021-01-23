@@ -7,9 +7,8 @@ Rubén Palmer Pérez
 #include "my_lib.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 
-char *checkAvailability(){
+char *checkAvailability(filename){
     //se coge por consola el nombre del archivo i se guarda en filename (PENDIENTE)
     int pila = open(filename, O_RDONLY , S_IRUSR); //supongo que si el archivo no 
     
@@ -24,9 +23,9 @@ int main(){
     struct my_stack *pila;
     char filename;
     int len = 0;
-    if((filename = checkAvailability()) == NULL){ //la pila no existe
+    if((filename = checkAvailability(filename)) == NULL){ //la pila no existe
         pila = my_stack_init(malloc(sizeof(int))); //cogemos el puntero del objeto pila
-        int fichero = open(filename, ); //aqui queremos crear el archivo (PENDIENTE)
+        int fichero = open(filename,  O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR); //aqui queremos crear el archivo (PENDIENTE)
         len = 10;
     }else{ //la pila si existe
         pila = my_stack_read(filename); //aqui leemos la pila del archivo y guardamos el puntero del objeto

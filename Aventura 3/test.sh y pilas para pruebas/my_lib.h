@@ -2,13 +2,14 @@
 de <string.h> y las funciones y estructuras para el
 manejo de una pila */
 
-#include <stdio.h>      /* para printf en depurarión */
+#include <stdio.h>     /* para printf en depurarión */
 #include <string.h>    /* para funciones de strings  */
 #include <stdlib.h>    /* Funciones malloc(), free(), y valor NULL */
 #include <fcntl.h>     /* Modos de apertura de función open()*/
 #include <sys/stat.h>  /* Permisos función open() */
 #include <sys/types.h> /* Definiciones de tipos de datos como size_t*/
 #include <unistd.h>    /* Funciones read(), write(), close()*/
+#include <pthread.h>   /* Crear hilos y bloquearlos*/
 
 //declaraciones funciones libreria string
 size_t my_strlen(const char *str);
