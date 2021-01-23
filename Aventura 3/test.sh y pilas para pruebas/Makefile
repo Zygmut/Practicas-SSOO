@@ -8,8 +8,8 @@ CFLAGS=-c -g -Wall -std=c99
 LDFLAGS=-pthread
 
 SOURCES=av3.c #my_lib.c #reader.c 
-LIBRARIES=my_lib.o
-INCLUDES=my_lib.h 
+LIBRARIES=
+INCLUDES=
 PROGRAMS= av3 #reader
 OBJS=$(SOURCES:.c=.o)
 
