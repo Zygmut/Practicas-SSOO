@@ -11,6 +11,8 @@ manejo de una pila */
 #include <unistd.h>    /* Funciones read(), write(), close()*/
 #include <pthread.h>   /* Crear hilos y bloquearlos*/
 
+extern pthread_mutex_t mutex;
+
 //declaraciones funciones libreria string
 size_t my_strlen(const char *str);
 int my_strcmp(const char *str1, const char *str2);

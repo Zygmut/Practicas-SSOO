@@ -9,6 +9,7 @@ Rubén Palmer Pérez
 #include <stdlib.h>
 
 #define NUM_THREADS 10
+#define mutex = PTHREAD_MUTEX_INITIALIZER;
 int pila;
 
 char *checkAvailability(filename){
@@ -22,7 +23,7 @@ char *checkAvailability(filename){
     return filename;
 }
 
-int main(){
+int main(){         //Parece ser que hay que hacere la funcion main como int main(int argc, char *argv[])
     struct my_stack *pila;
     FILE *filepointer;
     char filename;
@@ -51,7 +52,7 @@ int main(){
     pthread_t arrayThreads [10];
 
     for(int i = 0; i < NUM_THREADS; i++){
-       pthread_create(arrayThreads[i],NULL,thread,NULL);
+       pthread_create(arrayThreads[i],NULL,worker,NULL);
     }
 
     for (int i = 0; i < NUM_THREADS; i++){
@@ -60,6 +61,6 @@ int main(){
     
 }
 
-int thread(){
-    
+void *worker(void *ptr){
+
 }
