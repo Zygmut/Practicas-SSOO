@@ -306,6 +306,8 @@ int write_file(struct my_stack *stack, struct my_stack_node *pointer, int *fiche
         close(*fichero);
         return -1;
     }
+
+    return 0;
 }
 
 /*
