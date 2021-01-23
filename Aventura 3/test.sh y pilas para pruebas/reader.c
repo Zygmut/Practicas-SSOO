@@ -24,24 +24,25 @@ int main(int argc, char *argv[]){
         max = INT_MIN;
         min = INT_MAX;
        
-        len = my_stack_len(pila);
+        len = my_stack_len(pila);                       // Make at max, 10 iterations
         if(len > 10){
             len = 10;
         }
+
         printf("Stack length: %d\n",len);
         for(int i = 0; i < len; i++){
             int aux = *((int *)my_stack_pop(pila)); 
             printf("%d \n",aux);
 
-            if(aux < min){ 
+            if(aux < min){                              // Check min value
                 min = aux;
             }
-            if(aux > max){ 
+            if(aux > max){                              // Check max value
                 max = aux;
             }
-            sum = sum + aux;
+            sum = sum + aux;                            // Sumatory
         }
-        avg = sum/len;
+        avg = sum/len;                                  // Average
     }
     printf("Items: %d Sum: %d Min: %d Max: %d Average: %.3f \n", len, sum, min, max, avg);
 }
